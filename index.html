@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funding Rate Arbitrage</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Funding Rate Arbitrage</h1>
+        </header>
+
+        <div class="controls">
+            <div class="display-toggle-wrapper">
+                <button id="displayToggleBtn" class="display-toggle-btn active">Display: Interval</button>
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search symbol...">
+            </div>
+            <div class="market-count" id="marketCount">0 markets</div>
+        </div>
+
+        <div id="loading" class="loading">Loading...</div>
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="ticker">Symbol <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="variational">Variational <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="binance">Binance <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="bybit">Bybit <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="extended">Extended <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="strategy">Arbitrage <span class="sort-icon">⇅</span></th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be displayed here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
