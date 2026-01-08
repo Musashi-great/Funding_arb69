@@ -29,6 +29,9 @@ git push -u origin main
 5. "Show advanced" 클릭 → "New variable" 클릭하여 환경 변수 추가:
    - `BYBIT_API_KEY` = `OZwc5A2DRkFVhDCueOvMWYi0GwORQZu0SZuU`
    - `BYBIT_API_SECRET` = `Iobd3CM36UWiUgPgKJ`
+   - `LIGHTER_AUTH_TOKEN` = `ro:92374:single:1854227934:d2a84b224e888823ecb03dc3e90b3cefd0802253ceb8cc9456c6aec01d551cb2`
+   - `TELEGRAM_BOT_TOKEN` = `8502781237:AAH3lykU0ZnExQOV6XRR1S-EuMb-TRVYRK0` (텔레그램 알림 사용 시)
+   - `TELEGRAM_CHAT_ID` = `1374527604` (텔레그램 알림 사용 시)
 6. "Deploy site" 클릭
 
 ## 방법 2: 드래그 앤 드롭 (간단하지만 Functions 미작동)
@@ -47,6 +50,9 @@ Netlify 대시보드에서:
 2. 다음 변수 추가:
    - `BYBIT_API_KEY`: `OZwc5A2DRkFVhDCueOvMWYi0GwORQZu0SZuU`
    - `BYBIT_API_SECRET`: `Iobd3CM36UWiUgPgKJ`
+   - `LIGHTER_AUTH_TOKEN`: `ro:92374:single:1854227934:d2a84b224e888823ecb03dc3e90b3cefd0802253ceb8cc9456c6aec01d551cb2`
+   - `TELEGRAM_BOT_TOKEN`: `8502781237:AAH3lykU0ZnExQOV6XRR1S-EuMb-TRVYRK0` (텔레그램 알림 사용 시)
+   - `TELEGRAM_CHAT_ID`: `1374527604` (텔레그램 알림 사용 시)
 
 ## 확인 사항
 
@@ -55,4 +61,15 @@ Netlify 대시보드에서:
 - ✅ Binance API 작동
 - ✅ Bybit API 작동 (Git 연결 시)
 - ✅ Hyperliquid API 작동 (Git 연결 시)
+- ✅ Lighter API 작동 (Git 연결 시)
+- ✅ 텔레그램 알림 작동 (환경 변수 설정 시)
+
+## 텔레그램 알림 테스트
+
+배포 후 다음 URL로 테스트:
+```
+https://your-site.netlify.app/.netlify/functions/sendTelegramNotification
+```
+
+또는 로컬에서 `test-telegram-bot.html` 파일을 열어 테스트할 수 있습니다.
 

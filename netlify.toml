@@ -6,6 +6,12 @@
   node_bundler = "esbuild"
   included_files = ["netlify/functions/**"]
 
+# Scheduled function for Telegram notifications
+# Runs every hour (can be adjusted based on funding intervals)
+[[functions.scheduled]]
+  name = "scheduledTelegramNotification"
+  schedule = "0 * * * *"  # Every hour at minute 0 (e.g., 1:00, 2:00, 3:00...)
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

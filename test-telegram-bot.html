@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>텔레그램 봇 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #444;
+            background: #333;
+            color: #fff;
+            border-radius: 5px;
+        }
+        button {
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #333;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success {
+            color: #4CAF50;
+        }
+        .error {
+            color: #f44336;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 텔레그램 봇 테스트</h1>
+        
+        <h2>1. 봇 정보 확인</h2>
+        <input type="text" id="botToken" placeholder="봇 토큰 입력" value="8502781237:AAH3lykU0ZnExQOV6XRR1S-EuMb-TRVYRK0">
+        <button onclick="testBot()">봇 정보 확인</button>
+        <div id="botInfo" class="result"></div>
+
+        <h2>2. 채팅 ID 확인</h2>
+        <p>먼저 봇(@arb6974_bot)에게 아무 메시지나 보내세요 (예: /start 또는 "안녕")</p>
+        <button onclick="getChatId()">채팅 ID 가져오기</button>
+        <div id="chatId" class="result"></div>
+
+        <h2>3. 테스트 메시지 전송</h2>
+        <input type="text" id="chatIdInput" placeholder="채팅 ID 입력">
+        <input type="text" id="testMessage" placeholder="테스트 메시지" value="테스트 메시지입니다! 🚀">
+        <button onclick="sendTestMessage()">메시지 전송</button>
+        <div id="sendResult" class="result"></div>
+    </div>
+
+    <script>
+        const BOT_TOKEN = '8502781237:AAH3lykU0ZnExQOV6XRR1S-EuMb-TRVYRK0';
+
+        async function testBot() {
+            const resultDiv = document.getElementById('botInfo');
+            resultDiv.textContent = '확인 중...';
+            
+            try {
+                const token = document.getElementById('botToken').value;
+                const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+                const data = await response.json();
+                
+                if (data.ok) {
+                    resultDiv.innerHTML = `<span class="success">✅ 봇 정보:</span>\n${JSON.stringify(data.result, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 에러:</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 에러:</span>\n${error.message}`;
+            }
+        }
+
+        async function getChatId() {
+            const resultDiv = document.getElementById('chatId');
+            resultDiv.textContent = '확인 중...';
+            
+            try {
+                const token = document.getElementById('botToken').value;
+                const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+                const data = await response.json();
+                
+                if (data.ok && data.result && data.result.length > 0) {
+                    const lastUpdate = data.result[data.result.length - 1];
+                    const chatId = lastUpdate.message?.chat?.id || lastUpdate.channel_post?.chat?.id;
+                    
+                    if (chatId) {
+                        resultDiv.innerHTML = `<span class="success">✅ 채팅 ID:</span>\n${chatId}\n\n전체 응답:\n${JSON.stringify(data, null, 2)}`;
+                        document.getElementById('chatIdInput').value = chatId;
+                    } else {
+                        resultDiv.innerHTML = `<span class="error">❌ 채팅 ID를 찾을 수 없습니다. 봇에게 메시지를 보냈는지 확인하세요.</span>\n\n응답:\n${JSON.stringify(data, null, 2)}`;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 메시지를 찾을 수 없습니다. 봇(@arb6974_bot)에게 메시지를 보내고 다시 시도하세요.</span>\n\n응답:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 에러:</span>\n${error.message}`;
+            }
+        }
+
+        async function sendTestMessage() {
+            const resultDiv = document.getElementById('sendResult');
+            resultDiv.textContent = '전송 중...';
+            
+            try {
+                const token = document.getElementById('botToken').value;
+                const chatId = document.getElementById('chatIdInput').value;
+                const message = document.getElementById('testMessage').value;
+                
+                if (!chatId) {
+                    resultDiv.innerHTML = '<span class="error">❌ 채팅 ID를 입력하세요.</span>';
+                    return;
+                }
+                
+                const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: message,
+                        parse_mode: 'HTML'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    resultDiv.innerHTML = `<span class="success">✅ 메시지 전송 성공!</span>\n\n응답:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ 전송 실패:</span>\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ 에러:</span>\n${error.message}`;
+            }
+        }
+
+        // 페이지 로드 시 봇 정보 자동 확인
+        window.onload = () => {
+            testBot();
+        };
+    </script>
+</body>
+</html>
+

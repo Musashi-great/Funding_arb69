@@ -447,6 +447,17 @@ async function fetchLighterData() {
         const pairs = {};
         let ws = null;
         let timeoutId = null;
+        let resolved = false;
+        
+        const resolveOnce = (data) => {
+            if (resolved) return;
+            resolved = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+            resolve(data);
+        };
         
         try {
             // Use correct WebSocket URL from documentation: wss://mainnet.zklighter.elliot.ai/stream
@@ -455,48 +466,55 @@ async function fetchLighterData() {
             
             ws = new WebSocket(wsUrl);
             
-            // Set timeout (12 seconds to get initial data from all markets)
+            // Set timeout (15 seconds - increased to allow more data collection)
+            // If WebSocket doesn't respond quickly, continue without Lighter data
             timeoutId = setTimeout(() => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    console.log('Lighter: Closing WebSocket due to timeout');
-                    ws.close();
-                }
-                console.log(`Lighter: WebSocket timeout, collected ${Object.keys(pairs).length} pairs`);
+                if (!resolved) {
+                    console.log(`Lighter: WebSocket timeout (15s), collected ${Object.keys(pairs).length} pairs`);
                 if (Object.keys(pairs).length === 0) {
-                    console.warn('⚠️ Lighter: No data collected from WebSocket');
-                    console.warn('  Possible issues:');
-                    console.warn('  1. WebSocket URL might be incorrect');
-                    console.warn('  2. Authentication might be required');
-                    console.warn('  3. Channel name might be different');
-                    console.warn('  4. Server might not be sending data');
+                        console.warn('⚠️ Lighter: No data collected from WebSocket (continuing without Lighter data)');
+                        console.warn('  This might be due to:');
+                        console.warn('  1. WebSocket connection issue');
+                        console.warn('  2. Subscription not working');
+                        console.warn('  3. API endpoint changed');
+                        console.warn('  4. Network/firewall blocking WebSocket');
+                    }
+                    resolveOnce(pairs);
                 }
-                resolve(pairs);
-            }, 12000);
+            }, 15000);
             
             ws.onopen = () => {
                 console.log('✅ Lighter: WebSocket connected successfully');
+                // Wait a bit before subscribing to ensure connection is stable
+                setTimeout(() => {
                 // Subscribe to market_stats/all
                 const subscribeMessage = {
                     type: 'subscribe',
                     channel: 'market_stats/all'
                 };
+                    try {
                 ws.send(JSON.stringify(subscribeMessage));
                 console.log('Lighter: Sent subscription message:', JSON.stringify(subscribeMessage));
+                    } catch (e) {
+                        console.error('Lighter: Failed to send subscription:', e);
+                    }
+                }, 100);
             };
             
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     
-                    // Log first few messages for debugging
-                    if (Object.keys(pairs).length < 3) {
+                    // Log first few messages for debugging (limit to avoid console spam)
+                    const pairCount = Object.keys(pairs).length;
+                    if (pairCount < 5) {
                         console.log('Lighter: WebSocket message received:', JSON.stringify(data, null, 2));
                     }
                     
                     // Check if it's a market_stats update
                     // Documentation: https://apidocs.lighter.xyz/docs/websocket-reference
-                    // Response type: "update/market_stats"
-                    if (data.type === 'update/market_stats' && data.market_stats) {
+                    // Response type: "update/market_stats" or "market_stats/all"
+                    if ((data.type === 'update/market_stats' || data.type === 'market_stats/all') && data.market_stats) {
                         // Handle single market stats (when subscribing to specific market)
                         if (data.market_stats.market_id !== undefined) {
                             const stats = data.market_stats;
@@ -506,12 +524,36 @@ async function fetchLighterData() {
                             const ticker = stats.symbol || marketIdToSymbol[marketId] || `MARKET_${marketId}`;
                             
                             // Get funding rate (prefer current_funding_rate, then funding_rate)
-                            // Both are strings in decimal format (e.g., "0.0012" = 0.12%)
+                            // Lighter API returns funding rate as decimal (e.g., 0.000081 = 0.0081%)
+                            // Check if it's already in percentage format or decimal format
                             const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
                             
                                     if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
-                                        // Convert from decimal string to percentage
-                                        let fundingRate = parseFloat(fundingRateRaw) * 100;
+                                        let fundingRateDecimal = parseFloat(fundingRateRaw);
+                                        
+                                        // Lighter API returns funding rate - need to determine format
+                                        // Based on user feedback: 1-hour funding rate is 100x too high
+                                        // Lighter website shows 0.0081%, but we show 0.7800%
+                                        // This suggests API might return 0.0078 (already in percentage format)
+                                        // and we're multiplying by 100 incorrectly
+                                        // 
+                                        // Test: If API returns 0.0078 and we do * 100 = 0.78% (wrong)
+                                        //       If API returns 0.0078 and we use as-is = 0.0078% (wrong, should be 0.0081%)
+                                        //       If API returns 0.000081 and we do * 100 = 0.0081% (correct)
+                                        //
+                                        // Based on 100x difference, API likely returns values like 0.0078 (percentage)
+                                        // but we're treating it as decimal and multiplying by 100
+                                        // Solution: Don't multiply by 100 - use raw value as percentage
+                                        
+                                        // Lighter API returns funding rate already in percentage format
+                                        // Example: 0.0078 = 0.0078%, 0.0081 = 0.0081%
+                                        // Do NOT multiply by 100
+                                        let fundingRate = fundingRateDecimal;
+                                        
+                                        // Validate: if result seems too large (> 10%), log warning
+                                        if (Math.abs(fundingRate) > 10) {
+                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}% (raw: ${fundingRateRaw}). Check if API format changed.`);
+                                        }
                                         
                                         if (!isNaN(fundingRate) && isFinite(fundingRate)) {
                                             // Use default funding interval (1 hour for Lighter)
@@ -520,33 +562,32 @@ async function fetchLighterData() {
                                                 interval: EXCHANGES.lighter.fundingIntervalHours
                                             };
                                             
+                                            // Log first 10 for debugging
                                             if (Object.keys(pairs).length <= 10) {
-                                                console.log(`✅ Lighter [${ticker}]: market_id=${marketId}, funding_rate=${fundingRateRaw} → ${fundingRate}%`);
+                                                console.log(`✅ Lighter [${ticker}]: funding_rate=${fundingRate}%`);
                                             }
                                         }
-                                    } else if (Object.keys(pairs).length < 3) {
-                                console.log(`⚠️ Lighter [${ticker}]: No funding rate in market_stats`);
-                                console.log('  Market stats keys:', Object.keys(stats));
                             }
                         } 
                         // Handle market_stats/all response (all markets at once - object with market_index keys)
                         else if (typeof data.market_stats === 'object' && !Array.isArray(data.market_stats)) {
+                            // Process all market data quickly
                             Object.keys(data.market_stats).forEach(marketIndex => {
                                 const stats = data.market_stats[marketIndex];
                                 if (stats && (stats.current_funding_rate || stats.funding_rate)) {
                                     // Use symbol directly from market_stats (more reliable than mapping)
                                     const ticker = stats.symbol || marketIdToSymbol[stats.market_id] || marketIdToSymbol[parseInt(marketIndex)] || `MARKET_${stats.market_id || marketIndex}`;
                                     
-                                    // Get funding rate
-                                    // current_funding_rate: 1-hour funding rate (preferred)
-                                    // funding_rate: 8-hour funding rate (fallback)
-                                    // Both are strings in decimal format (e.g., "0.0012" = 0.12%)
-                                    // Use current_funding_rate as it's the 1-hour rate shown on Lighter website
+                                    // Get funding rate - Lighter API returns funding rate already in percentage format
                                     const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
                                     
                                     if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
-                                        // Convert from decimal string to percentage
-                                        let fundingRate = parseFloat(fundingRateRaw) * 100;
+                                        let fundingRate = parseFloat(fundingRateRaw);
+                                        
+                                        // Validate: if result seems too large (> 10%), log warning
+                                        if (Math.abs(fundingRate) > 10) {
+                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}% (raw: ${fundingRateRaw}). Check if API format changed.`);
+                                        }
                                         
                                         if (!isNaN(fundingRate) && isFinite(fundingRate)) {
                                             // Use default funding interval (1 hour for Lighter)
@@ -554,17 +595,14 @@ async function fetchLighterData() {
                                                 rate: fundingRate,
                                                 interval: EXCHANGES.lighter.fundingIntervalHours
                                             };
-                                            
-                                            if (Object.keys(pairs).length <= 10) {
-                                                console.log(`✅ Lighter [${ticker}]: market_id=${stats.market_id}, funding_rate=${fundingRateRaw} → ${fundingRate}%`);
                                             }
-                                        }
-                                    } else if (Object.keys(pairs).length < 3) {
-                                        console.log(`⚠️ Lighter [${ticker}]: No funding rate in market_stats`);
-                                        console.log('  Market stats keys:', Object.keys(stats));
                                     }
                                 }
                             });
+                            
+                            // If we got all market data, close WebSocket and resolve immediately
+                            console.log(`Lighter: Received all market data (${Object.keys(pairs).length} pairs), closing WebSocket`);
+                            resolveOnce(pairs);
                         }
                     } 
                     // Handle "connected" message (initial connection confirmation)
@@ -572,11 +610,56 @@ async function fetchLighterData() {
                         console.log('✅ Lighter: WebSocket connection confirmed');
                         // Connection is established, wait for market_stats data
                     }
-                    else if (Object.keys(pairs).length < 3) {
-                        console.log('Lighter: Received message, type:', data.type);
+                    // Handle subscription confirmation
+                    else if (data.type === 'subscribed' || data.type === 'subscribe') {
+                        console.log('✅ Lighter: Subscription confirmed, waiting for market_stats data...');
+                    }
+                    // Handle any message with market_stats directly (alternative format)
+                    else if (data.market_stats && !data.type) {
+                        console.log('Lighter: Received market_stats without type field');
+                        // Process as market_stats/all format
+                        if (typeof data.market_stats === 'object' && !Array.isArray(data.market_stats)) {
+                            Object.keys(data.market_stats).forEach(marketIndex => {
+                                const stats = data.market_stats[marketIndex];
+                                if (stats && (stats.current_funding_rate || stats.funding_rate)) {
+                                    const ticker = stats.symbol || marketIdToSymbol[stats.market_id] || marketIdToSymbol[parseInt(marketIndex)] || `MARKET_${stats.market_id || marketIndex}`;
+                                    const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
+                                    
+                                    if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
+                                        let fundingRate = parseFloat(fundingRateRaw);
+                                        
+                                        if (Math.abs(fundingRate) > 10) {
+                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}%`);
+                                        }
+                                        
+                                        if (!isNaN(fundingRate) && isFinite(fundingRate)) {
+                                            pairs[ticker] = {
+                                                rate: fundingRate,
+                                                interval: EXCHANGES.lighter.fundingIntervalHours
+                                            };
+                                        }
+                                    }
+                                }
+                            });
+                            console.log(`Lighter: Processed market_stats object, collected ${Object.keys(pairs).length} pairs`);
+                            if (Object.keys(pairs).length > 0) {
+                                resolveOnce(pairs);
+                            }
+                        }
+                    }
+                    else {
+                        // Log unknown message types for debugging
+                        const pairCount = Object.keys(pairs).length;
+                        if (pairCount < 10 || !resolved) {
+                            console.log('Lighter: Received message, type:', data.type || 'unknown');
                         console.log('  Message keys:', Object.keys(data));
                         if (data.channel) {
                             console.log('  Channel:', data.channel);
+                            }
+                            // Log full message for first few to debug
+                            if (pairCount < 3) {
+                                console.log('  Full message:', JSON.stringify(data, null, 2));
+                            }
                         }
                     }
                 } catch (e) {
@@ -586,17 +669,17 @@ async function fetchLighterData() {
             };
             
             ws.onerror = (error) => {
-                // WebSocket connection failed - this is expected if the URL is wrong
-                // Don't show error to user, just log it
-                console.warn('Lighter: WebSocket connection failed (this is expected if WebSocket is not available)');
-                console.warn('  WebSocket URL:', wsUrl);
-                console.warn('  Note: Lighter API may require different WebSocket URL or authentication');
-                if (timeoutId) clearTimeout(timeoutId);
-                // Return empty pairs - app will work without Lighter data
-                resolve(pairs);
+                // WebSocket connection failed - resolve immediately without waiting
+                console.error('Lighter: WebSocket error:', error);
+                console.warn('Lighter: WebSocket connection failed (continuing without Lighter data)');
+                if (Object.keys(pairs).length === 0) {
+                    console.warn('  No data was collected. Check browser console for WebSocket errors.');
+                }
+                resolveOnce(pairs);
             };
             
             ws.onclose = (event) => {
+                if (!resolved) {
                 if (event.code !== 1000 && event.code !== 1001) {
                     // Not a normal closure
                     console.warn(`Lighter: WebSocket closed unexpectedly (code: ${event.code})`);
@@ -606,8 +689,8 @@ async function fetchLighterData() {
                 } else {
                     console.log(`Lighter: WebSocket closed normally, collected ${Object.keys(pairs).length} pairs`);
                 }
-                if (timeoutId) clearTimeout(timeoutId);
-                resolve(pairs);
+                    resolveOnce(pairs);
+                }
             };
             
         } catch (error) {
@@ -1035,24 +1118,16 @@ function displayTable(pairs) {
             const profitPercent = pair.profit || 0;
             const profitFormatted = profitPercent > 0 ? `${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(4)}%` : '';
             
-            // Strategy icons for better visualization
-            const longIcon = '↗';
-            const shortIcon = '↘';
-            const strategyIcon = pair.strategy === 'long' ? longIcon : shortIcon;
-            const oppositeIcon = pair.oppositeStrategy === 'long' ? longIcon : shortIcon;
-            
             strategyHtml = `
                 <div class="strategy-container">
                     <div class="strategy-profit-large">${profitFormatted || '-'}</div>
                     <div class="strategy-actions">
                         <div class="strategy-item ${strategyClass}">
-                            <span class="strategy-icon">${strategyIcon}</span>
                             <span class="strategy-exchange">${strategyExchangeFull}</span>
                             <span class="strategy-label">${pair.strategy.toUpperCase()}</span>
                         </div>
                         <span class="strategy-separator">↔</span>
                         <div class="strategy-item ${oppositeClass}">
-                            <span class="strategy-icon">${oppositeIcon}</span>
                             <span class="strategy-exchange">${oppositeExchangeFull}</span>
                             <span class="strategy-label">${pair.oppositeStrategy.toUpperCase()}</span>
                         </div>
@@ -1090,8 +1165,20 @@ function displayTopArbitrage(pairs) {
         pair.oppositeExchange
     );
     
+    // Sort by estimatedApr (descending) if available, otherwise by profit (descending)
+    const sortedValidPairs = validPairs.sort((a, b) => {
+        // Prefer estimatedApr for sorting (more accurate)
+        if (a.estimatedApr !== undefined && b.estimatedApr !== undefined) {
+            return b.estimatedApr - a.estimatedApr; // Descending order
+        }
+        // Fallback to profit
+        const aProfit = a.profit || 0;
+        const bProfit = b.profit || 0;
+        return bProfit - aProfit; // Descending order
+    });
+    
     // Get top 3
-    const top3 = validPairs.slice(0, 3);
+    const top3 = sortedValidPairs.slice(0, 3);
     
     if (top3.length === 0) {
         topArbitrageContainer.style.display = 'none';
@@ -1111,12 +1198,15 @@ function displayTopArbitrage(pairs) {
         const strategyEl = card.querySelector('.card-strategy');
         
         if (tickerEl) {
+            // Display ticker name only
             tickerEl.textContent = pair.ticker || '-';
         }
         
         if (profitEl) {
+            // Display profit percentage centered and large
             const profitFormatted = `${pair.profit >= 0 ? '+' : ''}${pair.profit.toFixed(4)}%`;
             profitEl.textContent = profitFormatted;
+            profitEl.style.display = 'block';
         }
         
         if (strategyEl) {
@@ -1128,17 +1218,20 @@ function displayTopArbitrage(pairs) {
             const strategyIcon = pair.strategy === 'long' ? longIcon : shortIcon;
             const oppositeIcon = pair.oppositeStrategy === 'long' ? longIcon : shortIcon;
             
+            // Display strategy in a single row: [LONG Exchange] - [SHORT Exchange]
             strategyEl.innerHTML = `
-                <div class="strategy-row ${strategyClass}">
+                <div class="strategy-inline">
+                    <div class="strategy-btn ${strategyClass}">
                     <span class="strategy-icon">${strategyIcon}</span>
                     <span class="strategy-exchange">${pair.strategyExchange}</span>
                     <span class="strategy-label">${pair.strategy.toUpperCase()}</span>
                 </div>
-                <div class="strategy-arrow" style="text-align: center;">↔</div>
-                <div class="strategy-row ${oppositeClass}">
+                    <span class="strategy-separator">-</span>
+                    <div class="strategy-btn ${oppositeClass}">
                     <span class="strategy-icon">${oppositeIcon}</span>
                     <span class="strategy-exchange">${pair.oppositeExchange}</span>
                     <span class="strategy-label">${pair.oppositeStrategy.toUpperCase()}</span>
+                    </div>
                 </div>
             `;
         }
@@ -1176,9 +1269,15 @@ function sortPairs(pairs, column, direction) {
                 bVal = Math.abs(b.lighter || 0);
                 break;
             case 'strategy':
-                // Sort by profit (arbitrage opportunity)
+                // Sort by estimatedApr (more accurate than profit)
+                // Fallback to profit if estimatedApr not available
+                if (a.estimatedApr !== undefined && b.estimatedApr !== undefined) {
+                    aVal = a.estimatedApr;
+                    bVal = b.estimatedApr;
+                } else {
                 aVal = a.profit !== null && a.profit !== undefined ? a.profit : 0;
                 bVal = b.profit !== null && b.profit !== undefined ? b.profit : 0;
+                }
                 break;
             default:
                 return 0;
@@ -1258,6 +1357,11 @@ function setupSorting() {
 function setupSearch() {
     const searchInput = document.getElementById('searchInput');
     
+    if (!searchInput) {
+        console.warn('Search input element not found, skipping search setup');
+        return;
+    }
+    
     searchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase().trim();
         
@@ -1293,14 +1397,106 @@ function setupDisplayToggle() {
     }
 }
 
+// Normalize exchange data to common format
+// All rates normalized to: { ticker, rate (percent), interval (hours), apr (percent), name }
+function normalizeVariationalData(variationalPairs) {
+    const normalized = {};
+    Object.keys(variationalPairs).forEach(ticker => {
+        const data = variationalPairs[ticker];
+        normalized[ticker] = {
+            ticker: ticker,
+            rate: data.variational, // Already in percent format
+            interval: data.variationalInterval || EXCHANGES.variational.fundingIntervalHours,
+            apr: data.variationalAnnual,
+            name: data.name || ticker
+        };
+    });
+    return normalized;
+}
+
+function normalizeBinanceData(binanceData) {
+    const normalized = {};
+    Object.keys(binanceData).forEach(ticker => {
+        const data = binanceData[ticker];
+        // Binance rate is already in percent format (from fetchBinanceData: * 100)
+        const interval = data.interval || EXCHANGES.binance.fundingIntervalHours;
+        normalized[ticker] = {
+            ticker: ticker,
+            rate: data.rate, // Already in percent format
+            interval: interval,
+            apr: data.rate * (365 * 24 / interval)
+        };
+    });
+    return normalized;
+}
+
+function normalizeBybitData(bybitData) {
+    const normalized = {};
+    Object.keys(bybitData).forEach(ticker => {
+        const data = bybitData[ticker];
+        // Bybit rate is already in percent format (from fetchBybitData: * 100)
+        const interval = data.interval || EXCHANGES.bybit.fundingIntervalHours;
+        normalized[ticker] = {
+            ticker: ticker,
+            rate: data.rate, // Already in percent format
+            interval: interval,
+            apr: data.rate * (365 * 24 / interval)
+        };
+    });
+    return normalized;
+}
+
+function normalizeHyperliquidData(hyperliquidData) {
+    const normalized = {};
+    Object.keys(hyperliquidData).forEach(ticker => {
+        const data = hyperliquidData[ticker];
+        // Hyperliquid rate is already in percent format (from fetchHyperliquidData: * 100)
+        const interval = data.interval || EXCHANGES.hyperliquid.fundingIntervalHours;
+        normalized[ticker] = {
+            ticker: ticker,
+            rate: data.rate, // Already in percent format
+            interval: interval,
+            apr: data.rate * (365 * 24 / interval)
+        };
+    });
+    return normalized;
+}
+
+function normalizeLighterData(lighterData) {
+    const normalized = {};
+    Object.keys(lighterData).forEach(ticker => {
+        const data = lighterData[ticker];
+        // Lighter rate is already in percent format (from fetchLighterData: * 100)
+        const interval = data.interval || EXCHANGES.lighter.fundingIntervalHours;
+        normalized[ticker] = {
+            ticker: ticker,
+            rate: data.rate, // Already in percent format
+            interval: interval,
+            apr: data.rate * (365 * 24 / interval)
+        };
+    });
+    return normalized;
+}
+
 // Fetch all data
 async function fetchAllData() {
-    const loading = document.getElementById('loading');
+    const fullLoading = document.getElementById('fullLoading');
+    const mainContent = document.getElementById('mainContent');
+    const loadingStatus = document.getElementById('loadingStatus');
     const errorMessage = document.getElementById('errorMessage');
     const tableBody = document.getElementById('tableBody');
     
-    loading.classList.add('show');
+    // Show full screen loading
+    if (fullLoading) {
+        fullLoading.style.display = 'flex';
+        fullLoading.classList.remove('hidden');
+    }
+    if (mainContent) {
+        mainContent.style.display = 'none';
+    }
+    if (errorMessage) {
     errorMessage.style.display = 'none';
+    }
 
     try {
         if (DEBUG_MODE) {
@@ -1308,115 +1504,180 @@ async function fetchAllData() {
         }
         
         // Fetch all data in parallel for better performance
-        const [variationalPairs, binanceData, bybitData, hyperliquidData, lighterData] = await Promise.all([
-            fetchVariationalData(),
-            fetchBinanceData(),
-            fetchBybitData(),
-            fetchHyperliquidData(),
-            fetchLighterData()
+        // Add timeout wrapper to prevent hanging
+        const fetchWithTimeout = async (fetchFn, timeoutMs = 10000, name = '') => {
+            if (loadingStatus && name) {
+                loadingStatus.textContent = `Collecting ${name} data...`;
+            }
+            return Promise.race([
+                fetchFn(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), timeoutMs)
+                )
+            ]).catch(err => {
+                console.warn(`${name} fetch timeout or error: ${err.message}`);
+                return {}; // Return empty object on timeout/error
+            });
+        };
+        
+        if (loadingStatus) loadingStatus.textContent = 'Collecting all exchange data...';
+        
+        const [variationalRaw, binanceRaw, bybitRaw, hyperliquidRaw, lighterRaw] = await Promise.all([
+            fetchWithTimeout(fetchVariationalData, 8000, 'Variational'),
+            fetchWithTimeout(fetchBinanceData, 8000, 'Binance'),
+            fetchWithTimeout(fetchBybitData, 8000, 'Bybit'),
+            fetchWithTimeout(fetchHyperliquidData, 8000, 'Hyperliquid'),
+            fetchWithTimeout(fetchLighterData, 20000, 'Lighter') // Lighter WebSocket timeout increased to 20s (15s internal + buffer)
         ]);
         
+        if (loadingStatus) loadingStatus.textContent = 'Processing data...';
+        
         if (DEBUG_MODE) {
-            console.log(`Variational: ${Object.keys(variationalPairs).length} pairs`);
-            console.log(`Binance: ${Object.keys(binanceData).length} pairs`);
-            console.log(`Bybit: ${Object.keys(bybitData).length} pairs`);
-            console.log(`Hyperliquid: ${Object.keys(hyperliquidData).length} pairs`);
-            console.log(`Lighter: ${Object.keys(lighterData).length} pairs`);
-            console.log('=== Data fetch complete ===');
+            console.log(`Variational: ${Object.keys(variationalRaw).length} pairs`);
+            console.log(`Binance: ${Object.keys(binanceRaw).length} pairs`);
+            console.log(`Bybit: ${Object.keys(bybitRaw).length} pairs`);
+            console.log(`Hyperliquid: ${Object.keys(hyperliquidRaw).length} pairs`);
+            console.log(`Lighter: ${Object.keys(lighterRaw).length} pairs`);
         }
 
-        // Match Variational tickers with Binance funding rates
+        // Normalize each exchange data individually to common format
+        console.log('Normalizing exchange data...');
+        const variationalNormalized = normalizeVariationalData(variationalRaw);
+        const binanceNormalized = normalizeBinanceData(binanceRaw);
+        const bybitNormalized = normalizeBybitData(bybitRaw);
+        const hyperliquidNormalized = normalizeHyperliquidData(hyperliquidRaw);
+        const lighterNormalized = normalizeLighterData(lighterRaw);
+        
+        if (DEBUG_MODE) {
+            console.log('=== Data normalization complete ===');
+        }
+
+        // Combine all normalized exchange data
+        const allExchangeData = {
+            variational: variationalNormalized,
+            binance: binanceNormalized,
+            bybit: bybitNormalized,
+            hyperliquid: hyperliquidNormalized,
+            lighter: lighterNormalized
+        };
+
+        // Get all unique tickers from all exchanges (not just Variational)
+        const allTickers = new Set();
+        Object.keys(variationalNormalized).forEach(ticker => allTickers.add(ticker));
+        Object.keys(binanceNormalized).forEach(ticker => allTickers.add(ticker));
+        Object.keys(bybitNormalized).forEach(ticker => allTickers.add(ticker));
+        Object.keys(hyperliquidNormalized).forEach(ticker => allTickers.add(ticker));
+        Object.keys(lighterNormalized).forEach(ticker => allTickers.add(ticker));
+
+        // Process each ticker and find arbitrage opportunities
         allPairs = [];
-        Object.keys(variationalPairs).forEach(ticker => {
-            const varData = variationalPairs[ticker];
-            if (!varData || !varData.ticker) return;
+        allTickers.forEach(ticker => {
+            // Collect all exchange rates for this ticker (all normalized to percent format)
+            const exchangeRates = [];
             
-            // Get Binance, Bybit, Hyperliquid, and Lighter funding rates for this ticker (if available)
-            // Each exchange data is now an object: { rate, interval, timestamp }
-            const binanceDataItem = binanceData[ticker];
-            const bybitDataItem = bybitData[ticker];
-            const hyperliquidDataItem = hyperliquidData[ticker];
-            const lighterDataItem = lighterData[ticker];
-            
-            // Extract rate and interval from each exchange data using helper function
-            const binanceDataExtracted = extractExchangeData(binanceDataItem, EXCHANGES.binance.fundingIntervalHours);
-            const bybitDataExtracted = extractExchangeData(bybitDataItem, EXCHANGES.bybit.fundingIntervalHours);
-            const hyperliquidDataExtracted = extractExchangeData(hyperliquidDataItem, EXCHANGES.hyperliquid.fundingIntervalHours);
-            const lighterDataExtracted = extractExchangeData(lighterDataItem, EXCHANGES.lighter.fundingIntervalHours);
-            
+            if (variationalNormalized[ticker]) {
+                const data = variationalNormalized[ticker];
+                exchangeRates.push({
+                    name: 'Variational',
+                    rate: data.rate,
+                    interval: data.interval,
+                    apr: data.apr
+                });
+            }
+            if (binanceNormalized[ticker]) {
+                const data = binanceNormalized[ticker];
+                exchangeRates.push({
+                    name: 'Binance',
+                    rate: data.rate,
+                    interval: data.interval,
+                    apr: data.apr
+                });
+            }
+            if (bybitNormalized[ticker]) {
+                const data = bybitNormalized[ticker];
+                exchangeRates.push({
+                    name: 'Bybit',
+                    rate: data.rate,
+                    interval: data.interval,
+                    apr: data.apr
+                });
+            }
+            if (hyperliquidNormalized[ticker]) {
+                const data = hyperliquidNormalized[ticker];
+                exchangeRates.push({
+                    name: 'Hyperliquid',
+                    rate: data.rate,
+                    interval: data.interval,
+                    apr: data.apr
+                });
+            }
+            if (lighterNormalized[ticker]) {
+                const data = lighterNormalized[ticker];
+                exchangeRates.push({
+                    name: 'Lighter',
+                    rate: data.rate,
+                    interval: data.interval,
+                    apr: data.apr
+                });
+            }
+
+            // Need at least 2 exchanges to compare
+            if (exchangeRates.length < 2) {
+                return;
+            }
+
+            // Build pair object with all exchange data
+            const varData = variationalNormalized[ticker];
             const pair = {
-                ticker: varData.ticker,
-                name: varData.name || varData.ticker,
-                variational: varData.variational ?? null,
-                variationalInterval: varData.variationalInterval || EXCHANGES.variational.fundingIntervalHours,
-                variationalAnnual: varData.variationalAnnual ?? null,
-                binance: binanceDataExtracted.rate,
-                binanceInterval: binanceDataExtracted.interval,
-                bybit: bybitDataExtracted.rate,
-                bybitInterval: bybitDataExtracted.interval,
-                hyperliquid: hyperliquidDataExtracted.rate,
-                hyperliquidInterval: hyperliquidDataExtracted.interval,
-                lighter: lighterDataExtracted.rate,
-                lighterInterval: lighterDataExtracted.interval
+                ticker: ticker,
+                name: varData ? varData.name : ticker,
+                variational: variationalNormalized[ticker]?.rate ?? null,
+                variationalInterval: variationalNormalized[ticker]?.interval ?? null,
+                variationalAnnual: variationalNormalized[ticker]?.apr ?? null,
+                binance: binanceNormalized[ticker]?.rate ?? null,
+                binanceInterval: binanceNormalized[ticker]?.interval ?? null,
+                bybit: bybitNormalized[ticker]?.rate ?? null,
+                bybitInterval: bybitNormalized[ticker]?.interval ?? null,
+                hyperliquid: hyperliquidNormalized[ticker]?.rate ?? null,
+                hyperliquidInterval: hyperliquidNormalized[ticker]?.interval ?? null,
+                lighter: lighterNormalized[ticker]?.rate ?? null,
+                lighterInterval: lighterNormalized[ticker]?.interval ?? null
             };
 
-            // Calculate strategy and profit - find best arbitrage opportunity
-            // Compare ALL exchanges with each other, not just Variational as base
-            // Find the pair with the maximum funding rate difference
-            const exchanges = [
-                { name: 'Variational', rate: pair.variational },
-                { name: 'Binance', rate: binanceDataExtracted.rate },
-                { name: 'Bybit', rate: bybitDataExtracted.rate },
-                { name: 'Hyperliquid', rate: hyperliquidDataExtracted.rate },
-                { name: 'Lighter', rate: lighterDataExtracted.rate }
-            ];
+            // Find best arbitrage opportunity by comparing all exchange rates
+            // Sort by rate (ascending) - lowest rate = best for long, highest rate = best for short
+            const sortedRates = exchangeRates.filter(e => e.rate !== null && e.rate !== undefined)
+                .sort((a, b) => a.rate - b.rate);
             
-            let bestProfit = 0;
-            let bestStrategy = null;
-            let bestStrategyExchange = null;
-            let bestOppositeExchange = null;
-            let bestOppositeStrategy = null;
-            
-            // Compare all exchange pairs
-            for (let i = 0; i < exchanges.length; i++) {
-                for (let j = i + 1; j < exchanges.length; j++) {
-                    const exchange1 = exchanges[i];
-                    const exchange2 = exchanges[j];
-                    
-                    // Skip if either exchange has no data
-                    if (exchange1.rate === null || exchange1.rate === undefined || 
-                        exchange2.rate === null || exchange2.rate === undefined) {
-                        continue;
-                    }
-                    
-                    const profit = Math.abs(exchange1.rate - exchange2.rate);
-                    
-                    if (profit > bestProfit) {
-                        bestProfit = profit;
-                        
-                        // Determine strategy: long on lower rate, short on higher rate
-                        if (exchange1.rate > exchange2.rate) {
-                            bestStrategy = 'short';
-                            bestStrategyExchange = exchange1.name;
-                            bestOppositeExchange = exchange2.name;
-                            bestOppositeStrategy = 'long';
-                        } else if (exchange1.rate < exchange2.rate) {
-                            bestStrategy = 'long';
-                            bestStrategyExchange = exchange1.name;
-                            bestOppositeExchange = exchange2.name;
-                            bestOppositeStrategy = 'short';
-                        }
-                    }
-                }
+            if (sortedRates.length < 2) {
+                return;
             }
+
+            const bestRate = sortedRates[0];      // Lowest rate (best for long)
+            const worstRate = sortedRates[sortedRates.length - 1];  // Highest rate (best for short)
             
-            pair.strategy = bestStrategy;
-            pair.strategyExchange = bestStrategyExchange;
-            pair.oppositeExchange = bestOppositeExchange;
-            pair.oppositeStrategy = bestOppositeStrategy;
-            pair.profit = bestProfit;
+            // Calculate spread (difference between highest and lowest rate)
+            // Note: rates are in percent format, so profit is also in percent
+            const profit = Math.abs(worstRate.rate - bestRate.rate);
+            
+            if (profit > 0) {
+                // Calculate estimated APR from spread
+                // Use minimum interval for conservative APR calculation
+                const intervals = sortedRates.map(r => r.interval).filter(i => i > 0);
+                const minInterval = intervals.length > 0 ? Math.min(...intervals) : 8;
+                const annualTimes = (365 * 24) / minInterval;
+                const estimatedApr = profit * annualTimes; // profit is already in percent
+                
+                // Determine strategy: long on lower rate, short on higher rate
+                pair.strategy = 'long';
+                pair.strategyExchange = bestRate.name;
+                pair.oppositeExchange = worstRate.name;
+                pair.oppositeStrategy = 'short';
+                pair.profit = profit;
+                pair.estimatedApr = estimatedApr;
 
             allPairs.push(pair);
+            }
         });
 
         // Sort by arbitrage profit (descending) on initial load
@@ -1431,13 +1692,212 @@ async function fetchAllData() {
             marketCountEl.textContent = `${allPairs.length} markets`;
         }
         
-        loading.classList.remove('show');
+        // Hide loading and show main content
+        if (loadingStatus) loadingStatus.textContent = 'Complete!';
+        
+        // Small delay for smooth transition
+        setTimeout(() => {
+            if (fullLoading) {
+                fullLoading.classList.add('hidden');
+                setTimeout(() => {
+                    fullLoading.style.display = 'none';
+                }, 300);
+            }
+            if (mainContent) {
+                mainContent.style.display = 'block';
+            }
+        }, 500);
     } catch (error) {
         console.error('Error fetching data:', error);
+        if (errorMessage) {
         errorMessage.textContent = `Error loading data: ${error.message}`;
         errorMessage.style.display = 'block';
-        loading.classList.remove('show');
+        }
+        if (loadingStatus) {
+            loadingStatus.textContent = `Error: ${error.message}`;
+        }
+        // Still show main content even on error
+        setTimeout(() => {
+            if (fullLoading) {
+                fullLoading.classList.add('hidden');
+                setTimeout(() => {
+                    fullLoading.style.display = 'none';
+                }, 300);
+            }
+            if (mainContent) {
+                mainContent.style.display = 'block';
+            }
+        }, 1000);
     }
+}
+
+// Setup calculator
+function setupCalculator() {
+    const calculatorBtn = document.getElementById('calculatorBtn');
+    const calculatorModal = document.getElementById('calculatorModal');
+    const modalClose = document.getElementById('modalClose');
+    const calcPair = document.getElementById('calcPair');
+    const calcLongExchange = document.getElementById('calcLongExchange');
+    const calcShortExchange = document.getElementById('calcShortExchange');
+    const calcResult = document.getElementById('calcResult');
+
+    // Check if calculator elements exist (may not be in HTML yet)
+    if (!calculatorBtn || !calculatorModal || !modalClose || !calcPair || !calcLongExchange || !calcShortExchange || !calcResult) {
+        console.warn('Calculator elements not found in HTML, skipping calculator setup');
+        return;
+    }
+
+    // Open modal
+    calculatorBtn.addEventListener('click', () => {
+        calculatorModal.style.display = 'block';
+        updateCalculatorPairs();
+    });
+
+    // Close modal
+    modalClose.addEventListener('click', () => {
+        calculatorModal.style.display = 'none';
+    });
+
+    // Close modal when clicking outside
+    window.addEventListener('click', (event) => {
+        if (event.target === calculatorModal) {
+            calculatorModal.style.display = 'none';
+        }
+    });
+
+    // Update pairs dropdown
+    function updateCalculatorPairs() {
+        calcPair.innerHTML = '<option value="">Select a pair</option>';
+        if (allPairs && allPairs.length > 0) {
+            allPairs.forEach(pair => {
+                if (pair.profit > 0 && pair.strategyExchange && pair.oppositeExchange) {
+                    const option = document.createElement('option');
+                    option.value = pair.ticker;
+                    option.textContent = `${pair.ticker} (Spread: ${(pair.profit * 100).toFixed(4)}%)`;
+                    option.dataset.longExchange = pair.strategyExchange;
+                    option.dataset.shortExchange = pair.oppositeExchange;
+                    option.dataset.spread = pair.profit;
+                    option.dataset.longRate = pair[pair.strategyExchange.toLowerCase()] || 0;
+                    option.dataset.shortRate = pair[pair.oppositeExchange.toLowerCase()] || 0;
+                    option.dataset.longInterval = pair[`${pair.strategyExchange.toLowerCase()}Interval`] || 8;
+                    option.dataset.shortInterval = pair[`${pair.oppositeExchange.toLowerCase()}Interval`] || 8;
+                    calcPair.appendChild(option);
+                }
+            });
+        }
+    }
+
+    // Update exchanges when pair is selected
+    calcPair.addEventListener('change', (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        if (selectedOption.value) {
+            const longExchange = selectedOption.dataset.longExchange;
+            const shortExchange = selectedOption.dataset.shortExchange;
+            
+            calcLongExchange.innerHTML = `<option value="${longExchange}">${longExchange}</option>`;
+            calcShortExchange.innerHTML = `<option value="${shortExchange}">${shortExchange}</option>`;
+            
+            calcLongExchange.disabled = false;
+            calcShortExchange.disabled = false;
+        } else {
+            calcLongExchange.innerHTML = '<option value="">Select a pair first</option>';
+            calcShortExchange.innerHTML = '<option value="">Select a pair first</option>';
+            calcLongExchange.disabled = true;
+            calcShortExchange.disabled = true;
+        }
+    });
+
+    // Calculate function (reusable, called on any input change)
+    function calculateResults() {
+        const selectedOption = calcPair.options[calcPair.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            // Clear results if no pair selected
+            document.getElementById('resultSpread').textContent = '-';
+            document.getElementById('resultFundingProfit').textContent = '-';
+            document.getElementById('resultFundingCount').textContent = '-';
+            document.getElementById('resultTotalProfit').textContent = '-';
+            document.getElementById('resultProfitRate').textContent = '-';
+            document.getElementById('resultAPR').textContent = '-';
+            return;
+        }
+
+        const positionSize = parseFloat(document.getElementById('calcPositionSize').value) || 0;
+        const leverage = parseFloat(document.getElementById('calcLeverage').value) || 1;
+        const duration = parseFloat(document.getElementById('calcDuration').value) || 0;
+
+        if (positionSize <= 0 || duration <= 0) {
+            // Show placeholder if invalid input
+            document.getElementById('resultSpread').textContent = '-';
+            document.getElementById('resultFundingProfit').textContent = '-';
+            document.getElementById('resultFundingCount').textContent = '-';
+            document.getElementById('resultTotalProfit').textContent = '-';
+            document.getElementById('resultProfitRate').textContent = '-';
+            document.getElementById('resultAPR').textContent = '-';
+            return;
+        }
+
+        const spread = parseFloat(selectedOption.dataset.spread); // Already in percent (e.g., 0.00352 = 0.352%)
+        const longInterval = parseFloat(selectedOption.dataset.longInterval);
+        const shortInterval = parseFloat(selectedOption.dataset.shortInterval);
+        const minInterval = Math.min(longInterval, shortInterval);
+
+        // Calculate funding count
+        const fundingCount = Math.floor(duration / minInterval);
+
+        // Calculate profit per funding
+        // spread is in percent, so profit per funding = positionSize * spread / 100
+        const profitPerFunding = positionSize * spread / 100;
+
+        // Total profit
+        const totalProfit = profitPerFunding * fundingCount;
+
+        // Profit rate
+        const profitRate = (totalProfit / positionSize) * 100;
+
+        // APR calculation
+        const annualTimes = (365 * 24) / minInterval;
+        const apr = spread * annualTimes;
+
+        // Display results immediately
+        document.getElementById('resultSpread').textContent = `${(spread * 100).toFixed(4)}%`;
+        document.getElementById('resultFundingProfit').textContent = `$${profitPerFunding.toFixed(2)}`;
+        document.getElementById('resultFundingCount').textContent = `${fundingCount} times`;
+        document.getElementById('resultTotalProfit').textContent = `$${totalProfit.toFixed(2)}`;
+        document.getElementById('resultProfitRate').textContent = `${profitRate >= 0 ? '+' : ''}${profitRate.toFixed(4)}%`;
+        document.getElementById('resultProfitRate').className = `result-value-large ${profitRate >= 0 ? '' : 'negative'}`;
+        document.getElementById('resultAPR').textContent = `${apr >= 0 ? '+' : ''}${apr.toFixed(2)}%`;
+        document.getElementById('resultAPR').className = `result-value-large ${apr >= 0 ? '' : 'negative'}`;
+    }
+
+    // Update exchanges when pair is selected
+    calcPair.addEventListener('change', (e) => {
+        const selectedOption = e.target.options[e.target.selectedIndex];
+        if (selectedOption.value) {
+            const longExchange = selectedOption.dataset.longExchange;
+            const shortExchange = selectedOption.dataset.shortExchange;
+            
+            calcLongExchange.innerHTML = `<option value="${longExchange}">${longExchange}</option>`;
+            calcShortExchange.innerHTML = `<option value="${shortExchange}">${shortExchange}</option>`;
+            
+            calcLongExchange.disabled = false;
+            calcShortExchange.disabled = false;
+        } else {
+            calcLongExchange.innerHTML = '<option value="">Select a pair first</option>';
+            calcShortExchange.innerHTML = '<option value="">Select a pair first</option>';
+            calcLongExchange.disabled = true;
+            calcShortExchange.disabled = true;
+        }
+        // Calculate immediately when pair changes
+        calculateResults();
+    });
+
+    // Calculate on input change (real-time calculation)
+    document.getElementById('calcPositionSize').addEventListener('input', calculateResults);
+    document.getElementById('calcLeverage').addEventListener('input', calculateResults);
+    document.getElementById('calcDuration').addEventListener('input', calculateResults);
+    
+    // Initial calculation if default values are set
+    setTimeout(calculateResults, 100);
 }
 
 // Initialize
@@ -1445,6 +1905,7 @@ function initialize() {
     setupSorting();
     setupSearch();
     setupDisplayToggle();
+    setupCalculator();
     fetchAllData();
 }
 
