@@ -1,8 +1,8 @@
-# Git 저장소 연결 가이드
+# Git Repository Connection Guide
 
-## 1단계: GitHub 저장소 생성 완료 후
+## Step 1: After Creating GitHub Repository
 
-GitHub에서 저장소를 생성했다면, 다음 명령어를 실행하세요:
+If you've created a repository on GitHub, run the following commands:
 
 ```bash
 cd C:\funding-arbitrage
@@ -11,23 +11,23 @@ git branch -M main
 git push -u origin main
 ```
 
-**YOUR_USERNAME**을 본인의 GitHub 사용자명으로 변경하세요.
+Replace **YOUR_USERNAME** with your GitHub username.
 
-## 2단계: Netlify 연결
+## Step 2: Connect to Netlify
 
-1. [Netlify](https://app.netlify.com) 접속
+1. Go to [Netlify](https://app.netlify.com)
 2. "Add new site" → "Import an existing project"
-3. GitHub 선택
-4. 방금 만든 `funding-arbitrage` 저장소 선택
+3. Select GitHub
+4. Select the `funding-arbitrage` repository you just created
 5. Build settings:
-   - Build command: (비워두기)
-   - Publish directory: `.` (또는 비워두기)
-6. "Show advanced" → "New variable" 클릭하여 환경 변수 추가:
+   - Build command: (leave empty)
+   - Publish directory: `.` (or leave empty)
+6. "Show advanced" → Click "New variable" to add environment variables:
    - `BYBIT_API_KEY` = `OZwc5A2DRkFVhDCueOvMWYi0GwORQZu0SZuU`
    - `BYBIT_API_SECRET` = `Iobd3CM36UWiUgPgKJ`
-7. "Deploy site" 클릭
+7. Click "Deploy site"
 
-## 완료!
+## Complete!
 
-배포가 완료되면 모든 API가 정상 작동합니다.
+After deployment is complete, all APIs will work normally.
 

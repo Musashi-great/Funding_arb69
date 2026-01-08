@@ -1,6 +1,6 @@
 # Funding Rate Arbitrage
 
-암호화폐 거래소 간 펀딩 비율 차이를 이용한 차익거래 기회를 찾는 도구입니다.
+A tool to find arbitrage opportunities by comparing funding rate differences across cryptocurrency exchanges.
 
 Compare funding rates across multiple exchanges to identify arbitrage opportunities.
 
@@ -43,55 +43,55 @@ Or simply open `index.html` in a browser (some features may not work without Net
 
 ## Telegram Notifications
 
-상위 5개 arbitrage 기회를 텔레그램으로 알림받을 수 있습니다.
+Receive notifications for the top 5 arbitrage opportunities via Telegram.
 
-### 문서
+### Documentation
 
-- **프로덕션 설정**: [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) - Netlify 배포 후 텔레그램 봇 설정
-- **로컬 개발**: [TELEGRAM_LOCAL_SETUP.md](./TELEGRAM_LOCAL_SETUP.md) - 로컬에서 텔레그램 봇 테스트 방법
+- **Production Setup**: [TELEGRAM_SETUP.md](./TELEGRAM_SETUP.md) - Telegram bot setup after Netlify deployment
+- **Local Development**: [TELEGRAM_LOCAL_SETUP.md](./TELEGRAM_LOCAL_SETUP.md) - How to test Telegram bot locally
 
 ### Quick Setup
 
-1. 텔레그램에서 [@BotFather](https://t.me/botfather)로 봇 생성
-2. 봇 토큰과 채팅 ID 확인
-3. Netlify 환경 변수에 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_CHAT_ID` 설정
-4. 스케줄링 설정 (매시간 또는 펀딩 시간에 맞춰)
+1. Create a bot with [@BotFather](https://t.me/botfather) on Telegram
+2. Get bot token and chat ID
+3. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in Netlify environment variables
+4. Configure scheduling (hourly or based on funding intervals)
 
-### 로컬 테스트
+### Local Testing
 
-로컬에서 텔레그램 봇을 테스트하려면:
+To test the Telegram bot locally:
 
-**PowerShell 스크립트만 사용 (추천 - Node.js 불필요):**
+**Using PowerShell Script Only (Recommended - No Node.js Required):**
 ```powershell
-# PowerShell 스크립트만으로 독립 실행
-# Netlify Functions 없이도 작동합니다
+# Standalone execution with PowerShell script only
+# Works without Netlify Functions
 .\test-telegram-local.ps1
 ```
 
-이 스크립트는:
-- ✅ **독립 실행**: Netlify Functions나 Node.js 없이도 작동
-- ✅ **모든 거래소 지원**: Variational, Binance, Bybit, Hyperliquid 데이터 직접 가져오기
-- ✅ **실제 데이터 처리**: 거래소 API에서 직접 데이터를 가져와 차익거래 기회 계산
-- ✅ **텔레그램 전송**: 계산된 상위 3개 기회를 텔레그램으로 전송
+This script:
+- ✅ **Standalone**: Works without Netlify Functions or Node.js
+- ✅ **All Exchanges Supported**: Directly fetches data from Variational, Binance, Bybit, Hyperliquid
+- ✅ **Real Data Processing**: Fetches data directly from exchange APIs and calculates arbitrage opportunities
+- ✅ **Telegram Sending**: Sends top 3 calculated opportunities via Telegram
 
-**스크립트 설정:**
-1. `test-telegram-local.ps1` 파일을 열어서 상단의 봇 토큰과 채팅 ID를 수정:
+**Script Configuration:**
+1. Open `test-telegram-local.ps1` file and modify bot token and chat ID at the top:
    ```powershell
    $TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"
    $TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
    ```
-2. PowerShell에서 실행:
+2. Run in PowerShell:
    ```powershell
    .\test-telegram-local.ps1
    ```
 
-**Node.js 사용 (선택사항):**
+**Using Node.js (Optional):**
 ```bash
-# 간단한 테스트 스크립트 실행
+# Run simple test script
 node test-telegram-local.js
 
-# Netlify CLI + ngrok 사용 (웹훅 테스트)
-# 자세한 내용은 TELEGRAM_LOCAL_SETUP.md 참고
+# Use Netlify CLI + ngrok (webhook testing)
+# See TELEGRAM_LOCAL_SETUP.md for details
 ```
 
-자세한 내용은 `TELEGRAM_SETUP.md` 및 `TELEGRAM_LOCAL_SETUP.md` 파일을 참고하세요.
+For more details, see `TELEGRAM_SETUP.md` and `TELEGRAM_LOCAL_SETUP.md` files.
