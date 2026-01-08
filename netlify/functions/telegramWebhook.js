@@ -260,10 +260,10 @@ async function fetchTop5ArbitrageFallback() {
 // Format message for top 3 arbitrage opportunities
 function formatTelegramMessage(top3) {
     if (top3.length === 0) {
-        return '📊 <b>No arbitrage opportunities found</b>';
+        return '=== No Arbitrage Opportunities Found ===';
     }
 
-    let message = '🚀 <b>Top 3 Arbitrage Opportunities</b>\n\n';
+    let message = '=== Top 3 Arbitrage Opportunities ===\n\n';
     
     top3.forEach((market, index) => {
         const symbol = market.symbol || '-';
@@ -273,19 +273,24 @@ function formatTelegramMessage(top3) {
         const shortExchange = market.shortExchange || '-';
         const confidence = market.confidence || 'medium';
         
-        // Convert spread from decimal to percent (same as website displays profit)
-        const spreadPercent = spread * 100; // spread is in decimal (0.00352 = 0.352%)
-        const spreadFormatted = `${spreadPercent >= 0 ? '+' : ''}${spreadPercent.toFixed(4)}%`;
-        const confidenceEmoji = confidence === 'high' ? '🟢' : confidence === 'medium' ? '🟡' : '🔴';
+        // Format confidence indicator
+        const confidenceTag = confidence === 'high' ? '[HIGH]' : confidence === 'medium' ? '[MED]' : '[LOW]';
         
-        message += `${index + 1}. <b>${symbol}</b> ${confidenceEmoji}\n`;
-        message += `   📊 Spread: <b>${spreadFormatted}</b>\n`;
-        message += `   ↗ Long: ${longExchange.toUpperCase()}\n`;
-        message += `   ↘ Short: ${shortExchange.toUpperCase()}\n\n`;
+        // Format APR
+        const aprFormatted = `${estimatedApr >= 0 ? '+' : ''}${estimatedApr.toFixed(2)}%`;
+        
+        // Format spread (convert from decimal to percent)
+        const spreadPercent = spread * 100;
+        const spreadFormatted = `${spreadPercent.toFixed(4)}%`;
+        
+        message += `#${index + 1} ${symbol} ${confidenceTag}\n`;
+        message += `APR: ${aprFormatted} | Spread: ${spreadFormatted}\n`;
+        message += `Long: ${longExchange.toUpperCase()} | Short: ${shortExchange.toUpperCase()}\n\n`;
     });
 
     const now = new Date();
-    message += `⏰ <i>Updated: ${now.toLocaleString('ko-KR')}</i>`;
+    const dateStr = now.toISOString().replace('T', ' ').substring(0, 19);
+    message += `---\nUpdated: ${dateStr}`;
     
     return message;
 }
@@ -375,7 +380,7 @@ exports.handler = async (event, context) => {
             // Handle /funding command
             if (text.startsWith('/funding') || text.startsWith('/start')) {
                 // Send "Loading..." message
-                await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, '⏳ 데이터를 가져오는 중...');
+                await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, 'Loading data...');
 
                 // Fetch top 3 arbitrage opportunities
                 const top3 = await fetchTop5Arbitrage();
@@ -393,11 +398,11 @@ exports.handler = async (event, context) => {
 
             // Handle /help command
             if (text.startsWith('/help')) {
-                const helpMessage = `🤖 <b>Funding Rate Arbitrage Bot</b>\n\n` +
-                    `<b>명령어:</b>\n` +
-                    `/funding - 상위 3개 arbitrage 기회 조회\n` +
-                    `/help - 도움말 표시\n\n` +
-                    `자동 알림은 매시간 전송됩니다.`;
+                const helpMessage = `=== Funding Rate Arbitrage Bot ===\n\n` +
+                    `Commands:\n` +
+                    `/funding - View top 3 arbitrage opportunities\n` +
+                    `/help - Show help\n\n` +
+                    `Automatic notifications are sent hourly.`;
                 
                 await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, helpMessage);
                 

@@ -264,23 +264,47 @@ async function sendTelegramMessage(botToken, chatId, message) {
 // Format message for top 3 arbitrage opportunities
 function formatTelegramMessage(top3) {
     if (top3.length === 0) {
-        return '📊 <b>No arbitrage opportunities found</b>';
+        return '=== No Arbitrage Opportunities Found ===';
     }
 
-    let message = '🚀 <b>Top 3 Arbitrage Opportunities</b>\n\n';
+    let message = '=== Top 3 Arbitrage Opportunities ===\n\n';
     
     top3.forEach((pair, index) => {
-        const profitFormatted = `${pair.profit >= 0 ? '+' : ''}${pair.profit.toFixed(4)}%`;
-        const strategyIcon = pair.strategy === 'long' ? '↗' : '↘';
-        const oppositeIcon = pair.strategy === 'short' ? '↗' : '↘';
+        const ticker = pair.ticker || pair.symbol || '-';
+        const profit = pair.profit || pair.spread || 0;
+        const estimatedApr = pair.estimatedApr || 0;
+        const confidence = pair.confidence || 'low';
         
-        message += `${index + 1}. <b>${pair.ticker}</b> - ${profitFormatted}\n`;
-        message += `   ${strategyIcon} ${pair.strategyExchange} ${pair.strategy.toUpperCase()}\n`;
-        message += `   ${oppositeIcon} ${pair.oppositeExchange} ${pair.strategy === 'long' ? 'SHORT' : 'LONG'}\n\n`;
+        // Determine long and short exchanges
+        let longExchange, shortExchange;
+        if (pair.longExchange && pair.shortExchange) {
+            longExchange = pair.longExchange;
+            shortExchange = pair.shortExchange;
+        } else if (pair.strategy === 'long') {
+            longExchange = pair.strategyExchange;
+            shortExchange = pair.oppositeExchange;
+        } else {
+            longExchange = pair.oppositeExchange;
+            shortExchange = pair.strategyExchange;
+        }
+        
+        // Format confidence indicator
+        const confidenceTag = confidence === 'high' ? '[HIGH]' : confidence === 'medium' ? '[MED]' : '[LOW]';
+        
+        // Format APR
+        const aprFormatted = `${estimatedApr >= 0 ? '+' : ''}${estimatedApr.toFixed(2)}%`;
+        
+        // Format spread
+        const spreadFormatted = `${profit.toFixed(4)}%`;
+        
+        message += `#${index + 1} ${ticker} ${confidenceTag}\n`;
+        message += `APR: ${aprFormatted} | Spread: ${spreadFormatted}\n`;
+        message += `Long: ${longExchange.toUpperCase()} | Short: ${shortExchange.toUpperCase()}\n\n`;
     });
 
     const now = new Date();
-    message += `⏰ <i>Updated: ${now.toLocaleString('ko-KR')}</i>`;
+    const dateStr = now.toISOString().replace('T', ' ').substring(0, 19);
+    message += `---\nUpdated: ${dateStr}`;
     
     return message;
 }
