@@ -1154,26 +1154,18 @@ function displayTable(pairs) {
     updateSortIcons();
 }
 
-// Display top 3 arbitrage opportunities
-function displayTopArbitrage(pairs, searchTerm = '') {
+// Display top 3 arbitrage opportunities (fixed, not affected by search)
+function displayTopArbitrage(pairs) {
     const topArbitrageContainer = document.getElementById('topArbitrage');
     if (!topArbitrageContainer) return;
 
     // Filter pairs with valid arbitrage opportunities (profit > 0 and strategy exists)
-    let validPairs = pairs.filter(pair =>
+    const validPairs = pairs.filter(pair =>
         pair.profit > 0 &&
         pair.strategy &&
         pair.strategyExchange &&
         pair.oppositeExchange
     );
-
-    // Apply search filter if search term is provided
-    if (searchTerm && searchTerm.trim() !== '') {
-        const term = searchTerm.toLowerCase().trim();
-        validPairs = validPairs.filter(pair =>
-            (pair.ticker || '').toLowerCase().includes(term)
-        );
-    }
 
     // Sort by estimatedApr (descending) if available, otherwise by profit (descending)
     const sortedValidPairs = validPairs.sort((a, b) => {
@@ -1364,8 +1356,7 @@ function setupSorting() {
             
             // Update table with sorted data
             displayTable(pairsToDisplay);
-            // Update top arbitrage display
-            displayTopArbitrage(pairsToDisplay);
+            // Top 3 arbitrage display is fixed (not affected by search)
         });
         
         // Also make sort icon clickable
@@ -1403,19 +1394,10 @@ function setupSearch() {
     });
 }
 
-// Setup top arbitrage search
+// Setup top arbitrage search (disabled - top 3 is now fixed)
 function setupTopArbitrageSearch() {
-    const topArbitrageSearch = document.getElementById('topArbitrageSearch');
-
-    if (!topArbitrageSearch) {
-        console.warn('Top arbitrage search input not found, skipping setup');
-        return;
-    }
-
-    topArbitrageSearch.addEventListener('input', (e) => {
-        const searchTerm = e.target.value;
-        displayTopArbitrage(allPairs, searchTerm);
-    });
+    // Top 3 arbitrage is now fixed and not affected by search
+    // This function is kept for compatibility but does nothing
 }
 
 // Setup display toggle
