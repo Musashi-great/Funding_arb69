@@ -1,3 +1,17 @@
+// Elegant double-headed arrow SVG for arbitrage display
+const ARROW_SEPARATOR_SVG = `<svg viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#22C55E;stop-opacity:0.8" />
+            <stop offset="50%" style="stop-color:#6B7280;stop-opacity:0.6" />
+            <stop offset="100%" style="stop-color:#EF4444;stop-opacity:0.8" />
+        </linearGradient>
+    </defs>
+    <line x1="4" y1="8" x2="36" y2="8" stroke="url(#arrowGrad)" stroke-width="1.5" stroke-linecap="round"/>
+    <polygon points="4,8 9,5 9,11" fill="#22C55E" opacity="0.8"/>
+    <polygon points="36,8 31,5 31,11" fill="#EF4444" opacity="0.8"/>
+</svg>`;
+
 // Exchange API configuration
 const EXCHANGES = {
     variational: {
@@ -1109,27 +1123,33 @@ function displayTable(pairs) {
         if (pair.strategy && pair.strategyExchange && pair.oppositeExchange) {
             const strategyClass = pair.strategy === 'long' ? 'long' : 'short';
             const oppositeClass = pair.oppositeStrategy === 'long' ? 'long' : 'short';
-            
-            // Use full exchange names (font size will be reduced in CSS)
+
+            // Use full exchange names
             const strategyExchangeFull = pair.strategyExchange;
             const oppositeExchangeFull = pair.oppositeExchange;
-            
+
             // Use profit from pair (already calculated in fetchAllData)
             const profitPercent = pair.profit || 0;
             const profitFormatted = profitPercent > 0 ? `${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(4)}%` : '';
-            
+
+            // Format APR
+            const aprFormatted = pair.estimatedApr !== undefined && pair.estimatedApr > 0
+                ? `${pair.estimatedApr.toFixed(1)}%`
+                : '';
+
             strategyHtml = `
                 <div class="strategy-container">
                     <div class="strategy-profit-large">${profitFormatted || '-'}</div>
-                    <div class="strategy-actions">
+                    ${aprFormatted ? `<div class="strategy-apr">APR <span>${aprFormatted}</span></div>` : ''}
+                    <div class="strategy-actions-row">
                         <div class="strategy-item ${strategyClass}">
-                            <span class="strategy-exchange">${strategyExchangeFull}</span>
-                            <span class="strategy-label">${pair.strategy.toUpperCase()}</span>
+                            <span class="strategy-direction-label">${pair.strategy === 'long' ? 'Long' : 'Short'}</span>
+                            <span class="strategy-exchange-full">${strategyExchangeFull}</span>
                         </div>
-                        <span class="strategy-separator">↔</span>
+                        <span class="arrow-separator">${ARROW_SEPARATOR_SVG}</span>
                         <div class="strategy-item ${oppositeClass}">
-                            <span class="strategy-exchange">${oppositeExchangeFull}</span>
-                            <span class="strategy-label">${pair.oppositeStrategy.toUpperCase()}</span>
+                            <span class="strategy-direction-label">${pair.oppositeStrategy === 'long' ? 'Long' : 'Short'}</span>
+                            <span class="strategy-exchange-full">${oppositeExchangeFull}</span>
                         </div>
                     </div>
                 </div>
@@ -1153,18 +1173,26 @@ function displayTable(pairs) {
 }
 
 // Display top 3 arbitrage opportunities
-function displayTopArbitrage(pairs) {
+function displayTopArbitrage(pairs, searchTerm = '') {
     const topArbitrageContainer = document.getElementById('topArbitrage');
     if (!topArbitrageContainer) return;
-    
+
     // Filter pairs with valid arbitrage opportunities (profit > 0 and strategy exists)
-    const validPairs = pairs.filter(pair => 
-        pair.profit > 0 && 
-        pair.strategy && 
-        pair.strategyExchange && 
+    let validPairs = pairs.filter(pair =>
+        pair.profit > 0 &&
+        pair.strategy &&
+        pair.strategyExchange &&
         pair.oppositeExchange
     );
-    
+
+    // Apply search filter if search term is provided
+    if (searchTerm && searchTerm.trim() !== '') {
+        const term = searchTerm.toLowerCase().trim();
+        validPairs = validPairs.filter(pair =>
+            (pair.ticker || '').toLowerCase().includes(term)
+        );
+    }
+
     // Sort by estimatedApr (descending) if available, otherwise by profit (descending)
     const sortedValidPairs = validPairs.sort((a, b) => {
         // Prefer estimatedApr for sorting (more accurate)
@@ -1176,66 +1204,82 @@ function displayTopArbitrage(pairs) {
         const bProfit = b.profit || 0;
         return bProfit - aProfit; // Descending order
     });
-    
+
     // Get top 3
     const top3 = sortedValidPairs.slice(0, 3);
-    
+
     if (top3.length === 0) {
         topArbitrageContainer.style.display = 'none';
         return;
     }
-    
+
     topArbitrageContainer.style.display = 'block';
-    
+
     // Update each card
     top3.forEach((pair, index) => {
         const cardId = `arbitrageCard${index + 1}`;
         const card = document.getElementById(cardId);
         if (!card) return;
-        
+
         const tickerEl = card.querySelector('.card-ticker');
         const profitEl = card.querySelector('.card-profit');
+        const aprValueEl = card.querySelector('.card-apr-value');
         const strategyEl = card.querySelector('.card-strategy');
-        
+
         if (tickerEl) {
             // Display ticker name only
             tickerEl.textContent = pair.ticker || '-';
         }
-        
+
         if (profitEl) {
-            // Display profit percentage centered and large
+            // Display profit percentage (spread)
             const profitFormatted = `${pair.profit >= 0 ? '+' : ''}${pair.profit.toFixed(4)}%`;
             profitEl.textContent = profitFormatted;
-            profitEl.style.display = 'block';
         }
-        
+
+        if (aprValueEl) {
+            // Display estimated APR with label
+            const aprFormatted = pair.estimatedApr !== undefined
+                ? `APR ${pair.estimatedApr.toFixed(1)}%`
+                : '-';
+            aprValueEl.textContent = aprFormatted;
+        }
+
         if (strategyEl) {
-            const strategyClass = pair.strategy === 'long' ? 'long' : 'short';
-            const oppositeClass = pair.oppositeStrategy === 'long' ? 'long' : 'short';
-            
-            const longIcon = '↗';
-            const shortIcon = '↘';
-            const strategyIcon = pair.strategy === 'long' ? longIcon : shortIcon;
-            const oppositeIcon = pair.oppositeStrategy === 'long' ? longIcon : shortIcon;
-            
-            // Display strategy in a single row: [LONG Exchange] - [SHORT Exchange]
+            // Display exchange names with Long/Short labels in horizontal row layout with arrow separator
             strategyEl.innerHTML = `
-                <div class="strategy-inline">
-                    <div class="strategy-btn ${strategyClass}">
-                    <span class="strategy-icon">${strategyIcon}</span>
-                    <span class="strategy-exchange">${pair.strategyExchange}</span>
-                    <span class="strategy-label">${pair.strategy.toUpperCase()}</span>
-                </div>
-                    <span class="strategy-separator">-</span>
-                    <div class="strategy-btn ${oppositeClass}">
-                    <span class="strategy-icon">${oppositeIcon}</span>
-                    <span class="strategy-exchange">${pair.oppositeExchange}</span>
-                    <span class="strategy-label">${pair.oppositeStrategy.toUpperCase()}</span>
+                <div class="strategy-simple-row">
+                    <div class="exchange-item long-item">
+                        <span class="direction-label-inline long-label">Long</span>
+                        <span class="exchange-name">${pair.strategyExchange}</span>
+                    </div>
+                    <span class="arrow-separator">${ARROW_SEPARATOR_SVG}</span>
+                    <div class="exchange-item short-item">
+                        <span class="direction-label-inline short-label">Short</span>
+                        <span class="exchange-name">${pair.oppositeExchange}</span>
                     </div>
                 </div>
             `;
         }
     });
+
+    // Hide unused cards if less than 3 opportunities
+    for (let i = top3.length; i < 3; i++) {
+        const cardId = `arbitrageCard${i + 1}`;
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.style.display = 'none';
+        }
+    }
+
+    // Show used cards
+    for (let i = 0; i < top3.length; i++) {
+        const cardId = `arbitrageCard${i + 1}`;
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.style.display = 'block';
+        }
+    }
 }
 
 // Sort function
@@ -1356,15 +1400,15 @@ function setupSorting() {
 // Setup search
 function setupSearch() {
     const searchInput = document.getElementById('searchInput');
-    
+
     if (!searchInput) {
         console.warn('Search input element not found, skipping search setup');
         return;
     }
-    
+
     searchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase().trim();
-        
+
         if (searchTerm === '') {
             displayTable(allPairs);
         } else {
@@ -1374,6 +1418,21 @@ function setupSearch() {
             });
             displayTable(filtered);
         }
+    });
+}
+
+// Setup top arbitrage search
+function setupTopArbitrageSearch() {
+    const topArbitrageSearch = document.getElementById('topArbitrageSearch');
+
+    if (!topArbitrageSearch) {
+        console.warn('Top arbitrage search input not found, skipping setup');
+        return;
+    }
+
+    topArbitrageSearch.addEventListener('input', (e) => {
+        const searchTerm = e.target.value;
+        displayTopArbitrage(allPairs, searchTerm);
     });
 }
 
@@ -1904,6 +1963,7 @@ function setupCalculator() {
 function initialize() {
     setupSorting();
     setupSearch();
+    setupTopArbitrageSearch();
     setupDisplayToggle();
     setupCalculator();
     fetchAllData();
