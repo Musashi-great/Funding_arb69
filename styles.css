@@ -278,12 +278,15 @@ header h1 {
 }
 
 .top-arbitrage-header {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     margin-bottom: 16px;
-    flex-wrap: wrap;
     gap: 16px;
+}
+
+.top-arbitrage-header::before {
+    content: "";
 }
 
 .top-arbitrage-title {
@@ -291,6 +294,8 @@ header h1 {
     font-weight: 600;
     color: #9CA3AF;
     margin: 0;
+    text-align: center;
+    justify-self: center;
 }
 
 .top-arbitrage-header .controls {
@@ -298,6 +303,7 @@ header h1 {
     align-items: center;
     gap: 10px;
     margin-bottom: 0;
+    justify-self: end;
 }
 
 .top-arbitrage-header .search-input {
@@ -1073,6 +1079,8 @@ tr:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+
 
 
 
