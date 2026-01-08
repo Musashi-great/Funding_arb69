@@ -277,12 +277,38 @@ header h1 {
     margin-bottom: 30px;
 }
 
+.top-arbitrage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
 .top-arbitrage-title {
-    text-align: center;
     font-size: 1.25rem;
     font-weight: 600;
     color: #9CA3AF;
-    margin-bottom: 16px;
+    margin: 0;
+}
+
+.top-arbitrage-header .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+.top-arbitrage-header .search-input {
+    max-width: 180px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.top-arbitrage-header .control-btn {
+    padding: 6px 14px;
+    font-size: 0.75rem;
 }
 
 .top-arbitrage-search {
@@ -1047,5 +1073,6 @@ tr:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
 
 
