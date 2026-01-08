@@ -45,6 +45,68 @@ header h1 {
     border-radius: 8px;
 }
 
+.search-input {
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #E5E7EB;
+    font-size: 0.9rem;
+    min-width: 200px;
+    transition: all 0.2s ease;
+}
+
+.search-input::placeholder {
+    color: #6B7280;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: rgba(91, 141, 239, 0.5);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.control-buttons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.control-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.calculator-btn {
+    background: linear-gradient(135deg, #10B981, #059669);
+    border: none;
+    color: white;
+}
+
+.calculator-btn:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-1px);
+}
+
+.toggle-btn {
+    background: rgba(91, 141, 239, 0.15);
+    border: 1px solid rgba(91, 141, 239, 0.3);
+    color: #5B8DEF;
+}
+
+.toggle-btn:hover {
+    background: rgba(91, 141, 239, 0.25);
+}
+
+.toggle-btn.active {
+    background: rgba(91, 141, 239, 0.3);
+    border-color: #5B8DEF;
+}
+
 .controls-left {
     display: flex;
     align-items: center;
