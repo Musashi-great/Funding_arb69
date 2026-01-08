@@ -1141,15 +1141,15 @@ function displayTable(pairs) {
                 <div class="strategy-container">
                     <div class="strategy-profit-large">${profitFormatted || '-'}</div>
                     ${aprFormatted ? `<div class="strategy-apr">APR <span>${aprFormatted}</span></div>` : ''}
-                    <div class="strategy-actions-row">
-                        <div class="strategy-item ${strategyClass}">
-                            <span class="strategy-direction-label">${pair.strategy === 'long' ? 'Long' : 'Short'}</span>
-                            <span class="strategy-exchange-full">${strategyExchangeFull}</span>
+                    <div class="strategy-simple-row table-strategy-row">
+                        <div class="exchange-item ${strategyClass}-item">
+                            <span class="direction-label-inline ${strategyClass}-label">${pair.strategy === 'long' ? 'LONG' : 'SHORT'}</span>
+                            <span class="exchange-name">${strategyExchangeFull}</span>
                         </div>
                         <span class="arrow-separator">${ARROW_SEPARATOR_SVG}</span>
-                        <div class="strategy-item ${oppositeClass}">
-                            <span class="strategy-direction-label">${pair.oppositeStrategy === 'long' ? 'Long' : 'Short'}</span>
-                            <span class="strategy-exchange-full">${oppositeExchangeFull}</span>
+                        <div class="exchange-item ${oppositeClass}-item">
+                            <span class="direction-label-inline ${oppositeClass}-label">${pair.oppositeStrategy === 'long' ? 'LONG' : 'SHORT'}</span>
+                            <span class="exchange-name">${oppositeExchangeFull}</span>
                         </div>
                     </div>
                 </div>

@@ -730,8 +730,8 @@ tr:hover {
     font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 3px;
+    padding: 3px 8px;
+    border-radius: 4px;
     flex-shrink: 0;
 }
 
@@ -747,6 +747,25 @@ tr:hover {
 
 .short-item .exchange-name {
     color: #EF4444;
+}
+
+/* Table arbitrage column - smaller version of top 3 cards style */
+.table-strategy-row {
+    gap: 4px;
+}
+
+.table-strategy-row .exchange-item {
+    gap: 4px;
+    font-size: 0.75rem;
+}
+
+.table-strategy-row .direction-label-inline {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+}
+
+.table-strategy-row .exchange-name {
+    font-size: 0.7rem;
 }
 
 /* Arrow separator for arbitrage display - elegant gradient design */
