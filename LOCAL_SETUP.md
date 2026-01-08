@@ -1,214 +1,213 @@
-# 로컬 테스트 환경 설정 가이드
+# Local Testing Environment Setup Guide
 
-로컬에서 Funding Rate Arbitrage 사이트를 테스트하는 방법입니다.
+How to test the Funding Rate Arbitrage site locally.
 
-## 방법 1: Python 사용 (가장 간단)
+## Method 1: Using Python (Simplest)
 
-### Python 3가 설치되어 있는 경우:
+### If Python 3 is installed:
 
-1. **터미널/명령 프롬프트 열기**
-   - Windows: `Win + R` → `cmd` 입력 → Enter
-   - 또는 PowerShell 사용
+1. **Open Terminal/Command Prompt**
+   - Windows: `Win + R` → type `cmd` → Enter
+   - Or use PowerShell
 
-2. **프로젝트 폴더로 이동**
+2. **Navigate to project folder**
    ```bash
    cd C:\funding-arbitrage
    ```
 
-3. **로컬 서버 실행**
+3. **Run local server**
    ```bash
    python -m http.server 8000
    ```
    
-   또는 Python 2인 경우:
+   Or if using Python 2:
    ```bash
    python -m SimpleHTTPServer 8000
    ```
 
-4. **브라우저에서 접속**
-   - 주소창에 입력: `http://localhost:8000`
-   - 또는: `http://127.0.0.1:8000`
+4. **Access in browser**
+   - Type in address bar: `http://localhost:8000`
+   - Or: `http://127.0.0.1:8000`
 
-5. **서버 종료**
-   - 터미널에서 `Ctrl + C` 누르기
+5. **Stop server**
+   - Press `Ctrl + C` in terminal
 
 ---
 
-## 방법 2: Node.js 사용
+## Method 2: Using Node.js
 
-### Node.js가 설치되어 있는 경우:
+### If Node.js is installed:
 
-1. **터미널/명령 프롬프트 열기**
+1. **Open Terminal/Command Prompt**
 
-2. **프로젝트 폴더로 이동**
+2. **Navigate to project folder**
    ```bash
    cd C:\funding-arbitrage
    ```
 
-3. **http-server 설치 (한 번만)**
+3. **Install http-server (one time only)**
    ```bash
    npm install -g http-server
    ```
 
-4. **로컬 서버 실행**
+4. **Run local server**
    ```bash
    http-server -p 8000
    ```
 
-5. **브라우저에서 접속**
-   - 주소창에 입력: `http://localhost:8000`
+5. **Access in browser**
+   - Type in address bar: `http://localhost:8000`
 
-6. **서버 종료**
-   - 터미널에서 `Ctrl + C` 누르기
-
----
-
-## 방법 3: VS Code Live Server 확장 사용
-
-### VS Code를 사용하는 경우:
-
-1. **VS Code에서 프로젝트 폴더 열기**
-   - `File` → `Open Folder` → `C:\funding-arbitrage` 선택
-
-2. **Live Server 확장 설치**
-   - 왼쪽 사이드바에서 확장 아이콘 클릭 (또는 `Ctrl + Shift + X`)
-   - 검색창에 "Live Server" 입력
-   - "Live Server" (Ritwick Dey) 설치
-
-3. **서버 실행**
-   - `index.html` 파일을 우클릭
-   - "Open with Live Server" 선택
-   - 자동으로 브라우저가 열립니다
-
-4. **서버 종료**
-   - VS Code 하단 상태바의 "Go Live" 버튼 클릭
+6. **Stop server**
+   - Press `Ctrl + C` in terminal
 
 ---
 
-## 방법 4: PHP 사용 (PHP가 설치되어 있는 경우)
+## Method 3: Using VS Code Live Server Extension
 
-1. **터미널/명령 프롬프트 열기**
+### If using VS Code:
 
-2. **프로젝트 폴더로 이동**
+1. **Open project folder in VS Code**
+   - `File` → `Open Folder` → select `C:\funding-arbitrage`
+
+2. **Install Live Server extension**
+   - Click extension icon in left sidebar (or `Ctrl + Shift + X`)
+   - Search for "Live Server"
+   - Install "Live Server" (by Ritwick Dey)
+
+3. **Run server**
+   - Right-click `index.html` file
+   - Select "Open with Live Server"
+   - Browser will open automatically
+
+4. **Stop server**
+   - Click "Go Live" button in VS Code bottom status bar
+
+---
+
+## Method 4: Using PHP (If PHP is installed)
+
+1. **Open Terminal/Command Prompt**
+
+2. **Navigate to project folder**
    ```bash
    cd C:\funding-arbitrage
    ```
 
-3. **로컬 서버 실행**
+3. **Run local server**
    ```bash
    php -S localhost:8000
    ```
 
-4. **브라우저에서 접속**
-   - 주소창에 입력: `http://localhost:8000`
+4. **Access in browser**
+   - Type in address bar: `http://localhost:8000`
 
 ---
 
-## 테스트 확인 사항
+## Test Verification
 
-로컬 서버가 실행되면:
+When local server is running:
 
-1. **브라우저 개발자 도구 열기**
-   - `F12` 키 또는 `Ctrl + Shift + I` (Windows)
+1. **Open browser developer tools**
+   - Press `F12` or `Ctrl + Shift + I` (Windows)
    - `Cmd + Option + I` (Mac)
 
-2. **Console 탭 확인**
-   - API 호출 로그 확인
-   - 에러 메시지 확인
+2. **Check Console tab**
+   - Check API call logs
+   - Check error messages
 
-3. **Network 탭 확인**
-   - API 요청 상태 확인
-   - 응답 데이터 확인
-
----
-
-## 주의사항
-
-- **CORS 문제**: 일부 API는 브라우저에서 직접 호출 시 CORS 오류가 발생할 수 있습니다.
-  - `file://` 프로토콜로 직접 열면 CORS 제한이 완화되어 작동할 수 있습니다.
-  - `http://localhost`로 서버를 실행하면 CORS 정책이 엄격하게 적용됩니다.
-  - **해결 방법**: Netlify CLI를 사용하여 로컬에서 Functions를 실행하면 CORS 문제를 해결할 수 있습니다 (아래 "방법 5" 참조).
-
-- **API 키 보안**: 로컬 테스트 시 Bybit API 키가 브라우저 개발자 도구에서 확인 가능합니다.
-  - 배포 시에는 Netlify Functions를 통해 서버 사이드에서만 사용됩니다.
-
-- **포트 번호**: 8000 포트가 이미 사용 중이면 다른 포트를 사용하세요.
-  - 예: `python -m http.server 8080`
+3. **Check Network tab**
+   - Check API request status
+   - Check response data
 
 ---
 
-## 방법 5: Netlify CLI 사용 (권장 - CORS 문제 해결)
+## Notes
 
-로컬 서버에서 CORS 문제가 발생하는 경우, Netlify CLI를 사용하면 Functions도 함께 실행되어 CORS 문제를 해결할 수 있습니다.
+- **CORS Issues**: Some APIs may cause CORS errors when called directly from browser.
+  - Opening with `file://` protocol may work with relaxed CORS restrictions.
+  - Running with `http://localhost` applies strict CORS policy.
+  - **Solution**: Use Netlify CLI to run Functions locally to resolve CORS issues (see "Method 5" below).
 
-### Netlify CLI 설치 및 사용:
+- **API Key Security**: When testing locally, Bybit API keys are visible in browser developer tools.
+  - When deployed, they are only used server-side through Netlify Functions.
 
-1. **Node.js 설치 확인**
-   - Node.js가 설치되어 있어야 합니다.
+- **Port Number**: If port 8000 is already in use, use a different port.
+  - Example: `python -m http.server 8080`
 
-2. **Netlify CLI 설치**
+---
+
+## Method 5: Using Netlify CLI (Recommended - Resolves CORS Issues)
+
+If CORS issues occur with local server, using Netlify CLI can run Functions together to resolve CORS issues.
+
+### Install and Use Netlify CLI:
+
+1. **Check Node.js installation**
+   - Node.js must be installed.
+
+2. **Install Netlify CLI**
    ```bash
    npm install -g netlify-cli
    ```
 
-3. **프로젝트 폴더로 이동**
+3. **Navigate to project folder**
    ```bash
    cd C:\funding-arbitrage
    ```
 
-4. **Netlify Dev 서버 실행**
+4. **Run Netlify Dev server**
    ```bash
    netlify dev
    ```
    
-   또는 Functions만 실행하려면:
+   Or to run Functions only:
    ```bash
    netlify dev --live
    ```
 
-5. **브라우저에서 접속**
-   - Netlify CLI가 자동으로 URL을 표시합니다 (보통 `http://localhost:8888`)
-   - 또는 표시된 URL로 접속
+5. **Access in browser**
+   - Netlify CLI will automatically display URL (usually `http://localhost:8888`)
+   - Or access the displayed URL
 
-6. **서버 종료**
-   - 터미널에서 `Ctrl + C` 누르기
+6. **Stop server**
+   - Press `Ctrl + C` in terminal
 
-### 장점:
-- ✅ Netlify Functions가 로컬에서도 작동
-- ✅ CORS 문제 해결
-- ✅ 프로덕션 환경과 동일한 환경에서 테스트 가능
+### Advantages:
+- ✅ Netlify Functions work locally
+- ✅ Resolves CORS issues
+- ✅ Test in same environment as production
 
-### 단점:
-- ⚠️ Node.js와 Netlify CLI 설치 필요
-
----
-
-## 문제 해결
-
-### "포트가 이미 사용 중입니다" 오류
-- 다른 포트 번호 사용: `python -m http.server 8080`
-- 또는 해당 포트를 사용하는 프로그램 종료
-
-### "Python을 찾을 수 없습니다" 오류
-- Python이 설치되어 있는지 확인
-- 또는 다른 방법 (Node.js, VS Code Live Server) 사용
-
-### API 데이터가 로드되지 않음
-- 브라우저 개발자 도구 Console 탭에서 에러 확인
-- Network 탭에서 API 요청 상태 확인
-- 인터넷 연결 확인
+### Disadvantages:
+- ⚠️ Requires Node.js and Netlify CLI installation
 
 ---
 
-## 빠른 시작 (Python 사용)
+## Troubleshooting
+
+### "Port is already in use" error
+- Use different port number: `python -m http.server 8080`
+- Or close program using that port
+
+### "Python not found" error
+- Check if Python is installed
+- Or use other method (Node.js, VS Code Live Server)
+
+### API data not loading
+- Check errors in browser developer tools Console tab
+- Check API request status in Network tab
+- Check internet connection
+
+---
+
+## Quick Start (Using Python)
 
 ```bash
-# 1. 프로젝트 폴더로 이동
+# 1. Navigate to project folder
 cd C:\funding-arbitrage
 
-# 2. 서버 실행
+# 2. Run server
 python -m http.server 8000
 
-# 3. 브라우저에서 http://localhost:8000 접속
+# 3. Access http://localhost:8000 in browser
 ```
-
