@@ -15,7 +15,7 @@ body {
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
 }
 
@@ -114,6 +114,169 @@ header h1 {
     margin-bottom: 20px;
 }
 
+.top-arbitrage-container {
+    margin-bottom: 24px;
+    padding: 20px;
+    background: rgba(15, 17, 23, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+.top-arbitrage-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #F3F4F6;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.top-arbitrage-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.arbitrage-card {
+    background: rgba(10, 12, 18, 0.6);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.arbitrage-card:hover {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: rgba(10, 12, 18, 0.8);
+    transform: translateY(-2px);
+}
+
+.arbitrage-card:nth-child(1) {
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.arbitrage-card:nth-child(1):hover {
+    border-color: rgba(255, 215, 0, 0.6);
+}
+
+.arbitrage-card:nth-child(2) {
+    border-color: rgba(192, 192, 192, 0.4);
+}
+
+.arbitrage-card:nth-child(2):hover {
+    border-color: rgba(192, 192, 192, 0.6);
+}
+
+.arbitrage-card:nth-child(3) {
+    border-color: rgba(205, 127, 50, 0.4);
+}
+
+.arbitrage-card:nth-child(3):hover {
+    border-color: rgba(205, 127, 50, 0.6);
+}
+
+.card-rank {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #9CA3AF;
+    opacity: 0.6;
+}
+
+.arbitrage-card:nth-child(1) .card-rank {
+    color: #FFD700;
+    opacity: 1;
+}
+
+.arbitrage-card:nth-child(2) .card-rank {
+    color: #C0C0C0;
+    opacity: 1;
+}
+
+.arbitrage-card:nth-child(3) .card-rank {
+    color: #CD7F32;
+    opacity: 1;
+}
+
+.card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.card-ticker {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #F3F4F6;
+    text-align: center;
+}
+
+.card-profit {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #60A5FA;
+    text-align: center;
+    padding: 8px;
+    background: rgba(96, 165, 250, 0.15);
+    border-radius: 6px;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.card-strategy {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+}
+
+.strategy-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.strategy-row.long {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.strategy-row.short {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.strategy-row .strategy-exchange {
+    color: #D1D5DB;
+    font-weight: 500;
+}
+
+.strategy-row.long .strategy-label {
+    color: #10B981;
+    font-weight: 600;
+}
+
+.strategy-row.short .strategy-label {
+    color: #EF4444;
+    font-weight: 600;
+}
+
+.strategy-arrow {
+    color: #6B7280;
+    font-weight: 600;
+    flex-shrink: 0;
+    padding: 0 4px;
+}
+
 .table-container {
     overflow-x: auto;
     border-radius: 8px;
@@ -124,7 +287,7 @@ header h1 {
 table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     table-layout: fixed;
 }
 
@@ -142,22 +305,28 @@ th {
     color: #D1D5DB;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     background: rgba(15, 17, 23, 0.9);
+    white-space: nowrap;
+}
+
+th:first-child {
+    text-align: center;
 }
 
 th:last-child {
     border-right: none;
 }
 
-th:nth-child(1) { width: 10%; } /* Symbol */
-th:nth-child(2) { width: 18%; } /* Variational */
-th:nth-child(3) { width: 18%; } /* Binance */
-th:nth-child(4) { width: 18%; } /* Bybit */
-th:nth-child(5) { width: 18%; } /* Extended */
-th:nth-child(6) { width: 18%; } /* Arbitrage */
+th:nth-child(1) { width: 8%; } /* Symbol */
+th:nth-child(2) { width: 13.5%; } /* Variational */
+th:nth-child(3) { width: 13.5%; } /* Binance */
+th:nth-child(4) { width: 13.5%; } /* Bybit */
+th:nth-child(5) { width: 13.5%; } /* Hyperliquid */
+th:nth-child(6) { width: 13.5%; } /* Lighter */
+th:nth-child(7) { width: 24%; } /* Arbitrage */
 
 th:first-child {
     position: sticky;
@@ -179,11 +348,26 @@ th.sortable:hover {
 }
 
 .sort-icon {
-    margin-left: 6px;
-    font-size: 0.75rem;
+    margin-right: 6px;
+    font-size: 0.8rem;
     opacity: 0.3;
     color: rgba(243, 244, 246, 0.3);
     transition: all 0.2s;
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+th.sortable:first-child .sort-icon {
+    margin-right: 8px;
+    font-size: 0.85rem;
+}
+
+.sort-icon:hover {
+    opacity: 0.6;
+    color: rgba(91, 141, 239, 0.6);
 }
 
 th.sort-asc .sort-icon,
@@ -199,7 +383,7 @@ td {
     vertical-align: middle;
     text-align: center;
     color: #E5E7EB;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     background: rgba(10, 12, 18, 0.3);
 }
 
@@ -214,6 +398,7 @@ td:first-child {
     background: rgba(10, 12, 18, 0.98);
     backdrop-filter: blur(10px);
     border-right: 1px solid rgba(255, 255, 255, 0.12);
+    text-align: center;
 }
 
 tbody tr {
@@ -228,7 +413,6 @@ tbody tr:hover {
     font-weight: 700;
     color: #FFFFFF;
     font-size: 0.95rem;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 .funding-rate-display {
@@ -279,17 +463,23 @@ tbody tr:hover {
     flex-direction: column;
     gap: 6px;
     font-size: 0.65rem;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
 }
 
 .strategy-profit-large {
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 1.15rem;
     color: #60A5FA;
     text-align: center;
-    padding: 3px 6px;
-    background: rgba(96, 165, 250, 0.1);
+    padding: 6px 12px;
+    background: rgba(96, 165, 250, 0.15);
     border-radius: 4px;
-    border: 1px solid rgba(96, 165, 250, 0.2);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    width: 100%;
+    min-width: 80px;
+    box-sizing: border-box;
 }
 
 .strategy-actions {
@@ -298,17 +488,23 @@ tbody tr:hover {
     justify-content: center;
     gap: 6px;
     flex-wrap: nowrap;
-    white-space: nowrap;
+    width: 100%;
 }
 
 .strategy-item {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 3px;
-    padding: 3px 6px;
+    padding: 5px 8px;
     border-radius: 4px;
     font-size: 0.6rem;
     white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 75px;
+    max-width: 110px;
+    box-sizing: border-box;
+    height: 24px;
 }
 
 .strategy-item.long {
@@ -339,6 +535,10 @@ tbody tr:hover {
     font-weight: 500;
     font-size: 0.55rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50px;
+    flex-shrink: 1;
 }
 
 .strategy-label {
@@ -347,6 +547,7 @@ tbody tr:hover {
     text-transform: uppercase;
     letter-spacing: 0.3px;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .strategy-item.long .strategy-label {
@@ -362,9 +563,13 @@ tbody tr:hover {
     font-size: 0.7rem;
     font-weight: 600;
     white-space: nowrap;
+    flex-shrink: 0;
+    padding: 0 2px;
 }
 
 .strategy-cell {
     color: #D1D5DB;
     text-align: center;
+    padding: 8px 12px;
+    vertical-align: middle;
 }

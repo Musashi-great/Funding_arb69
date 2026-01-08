@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Funding Rate Arbitrage</title>
+    <meta name="description" content="Compare funding rates across multiple exchanges to identify arbitrage opportunities">
+    <title>Funding Rate Arbitrage | Multi-Exchange Comparison</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -25,16 +26,47 @@
         <div id="loading" class="loading">Loading...</div>
         <div id="errorMessage" class="error-message" style="display: none;"></div>
 
+        <div id="topArbitrage" class="top-arbitrage-container" style="display: none;">
+            <h2 class="top-arbitrage-title">Top 3 Arbitrage Opportunities</h2>
+            <div class="top-arbitrage-cards">
+                <div class="arbitrage-card" id="arbitrageCard1">
+                    <div class="card-rank">#1</div>
+                    <div class="card-content">
+                        <div class="card-ticker">-</div>
+                        <div class="card-profit">-</div>
+                        <div class="card-strategy">-</div>
+                    </div>
+                </div>
+                <div class="arbitrage-card" id="arbitrageCard2">
+                    <div class="card-rank">#2</div>
+                    <div class="card-content">
+                        <div class="card-ticker">-</div>
+                        <div class="card-profit">-</div>
+                        <div class="card-strategy">-</div>
+                    </div>
+                </div>
+                <div class="arbitrage-card" id="arbitrageCard3">
+                    <div class="card-rank">#3</div>
+                    <div class="card-content">
+                        <div class="card-ticker">-</div>
+                        <div class="card-profit">-</div>
+                        <div class="card-strategy">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th class="sortable" data-sort="ticker">Symbol <span class="sort-icon">⇅</span></th>
-                        <th class="sortable" data-sort="variational">Variational <span class="sort-icon">⇅</span></th>
-                        <th class="sortable" data-sort="binance">Binance <span class="sort-icon">⇅</span></th>
-                        <th class="sortable" data-sort="bybit">Bybit <span class="sort-icon">⇅</span></th>
-                        <th class="sortable" data-sort="extended">Extended <span class="sort-icon">⇅</span></th>
-                        <th class="sortable" data-sort="strategy">Arbitrage <span class="sort-icon">⇅</span></th>
+                        <th class="sortable" data-sort="ticker">Symbol</th>
+                        <th class="sortable" data-sort="variational">Variational</th>
+                        <th class="sortable" data-sort="binance">Binance</th>
+                        <th class="sortable" data-sort="bybit">Bybit</th>
+                        <th class="sortable" data-sort="hyperliquid">Hyperliquid</th>
+                        <th class="sortable" data-sort="lighter">Lighter</th>
+                        <th class="sortable" data-sort="strategy">Arbitrage</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -44,6 +76,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=23"></script>
 </body>
 </html>

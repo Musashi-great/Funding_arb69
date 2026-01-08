@@ -1,5 +1,14 @@
 const crypto = require('crypto');
-const fetch = require('node-fetch');
+
+// Use native fetch (Node.js 18+) or node-fetch as fallback
+let fetch;
+try {
+    // Try native fetch first (Node.js 18+)
+    fetch = globalThis.fetch || require('node-fetch');
+} catch (e) {
+    // Fallback to node-fetch if native fetch is not available
+    fetch = require('node-fetch');
+}
 
 exports.handler = async (event, context) => {
     // CORS headers

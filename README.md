@@ -7,7 +7,8 @@ Compare funding rates across multiple exchanges to identify arbitrage opportunit
 - Variational
 - Binance
 - Bybit
-- Extended
+- Hyperliquid
+- Lighter
 
 ## Netlify Deployment
 

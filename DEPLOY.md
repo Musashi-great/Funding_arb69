@@ -38,7 +38,7 @@ git push -u origin main
 3. `C:\funding-arbitrage` 폴더를 드래그 앤 드롭
 4. 배포 완료
 
-⚠️ **주의**: 이 방법은 Netlify Functions가 작동하지 않아 Bybit과 Extended API가 동작하지 않습니다.
+⚠️ **주의**: 이 방법은 Netlify Functions가 작동하지 않아 Bybit API가 동작하지 않습니다.
 
 ## 환경 변수 설정 (방법 1 사용 시)
 
@@ -54,5 +54,5 @@ Netlify 대시보드에서:
 - ✅ Variational API 작동
 - ✅ Binance API 작동
 - ✅ Bybit API 작동 (Git 연결 시)
-- ✅ Extended API 작동 (Git 연결 시)
+- ✅ Hyperliquid API 작동 (Git 연결 시)
 
