@@ -424,20 +424,146 @@ async function fetchHyperliquidData() {
     }
 }
 
-// Fetch Lighter data using WebSocket for market_stats
-// First get order_books to map market_id to symbol, then subscribe to market_stats/all
+// Fetch Lighter data - Try REST API first, then WebSocket as fallback
 async function fetchLighterData() {
-    // Step 1: Get order_books to create market_id -> symbol mapping
+    const pairs = {};
+    
+    // Step 1: Try REST API endpoints to get funding rates
+    const restEndpoints = [
+        '/api/v1/markets',
+        '/api/v1/market-stats',
+        '/api/v1/funding-rates',
+        '/api/v1/tickers'
+    ];
+    
+    for (const endpoint of restEndpoints) {
+        try {
+            const url = `${EXCHANGES.lighter.baseUrl}${endpoint}`;
+            console.log(`Lighter: Trying REST endpoint ${url}`);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': LIGHTER_AUTH_TOKEN
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`Lighter: REST ${endpoint} response:`, JSON.stringify(data).substring(0, 500));
+                
+                // Try to extract funding rates from response
+                const extracted = extractLighterFundingRates(data);
+                if (Object.keys(extracted).length > 0) {
+                    console.log(`✅ Lighter: Got ${Object.keys(extracted).length} pairs from REST ${endpoint}`);
+                    return extracted;
+                }
+            }
+        } catch (e) {
+            console.warn(`Lighter: REST ${endpoint} failed:`, e.message);
+        }
+    }
+    
+    // Step 2: Try Netlify Function (for production)
+    try {
+        const response = await fetch('/.netlify/functions/fetchLighter');
+        if (response.ok) {
+            const data = await response.json();
+            const extracted = extractLighterFundingRates(data);
+            if (Object.keys(extracted).length > 0) {
+                console.log(`✅ Lighter: Got ${Object.keys(extracted).length} pairs from Netlify Function`);
+                return extracted;
+            }
+        }
+    } catch (e) {
+        console.warn('Lighter: Netlify Function not available');
+    }
+    
+    // Step 3: Try WebSocket as fallback
+    console.log('Lighter: Trying WebSocket connection...');
+    return await fetchLighterDataWebSocket();
+}
+
+// Extract funding rates from Lighter API response (handles multiple formats)
+function extractLighterFundingRates(data) {
+    const pairs = {};
+    
+    // Handle array of markets
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            const ticker = item.symbol || item.ticker || item.market || item.name;
+            const fundingRate = item.funding_rate || item.current_funding_rate || item.fundingRate;
+            
+            if (ticker && fundingRate !== undefined) {
+                pairs[ticker] = {
+                    rate: parseFloat(fundingRate),
+                    interval: EXCHANGES.lighter.fundingIntervalHours
+                };
+            }
+        });
+    }
+    // Handle object with markets array
+    else if (data && data.markets && Array.isArray(data.markets)) {
+        data.markets.forEach(item => {
+            const ticker = item.symbol || item.ticker || item.market || item.name;
+            const fundingRate = item.funding_rate || item.current_funding_rate || item.fundingRate;
+            
+            if (ticker && fundingRate !== undefined) {
+                pairs[ticker] = {
+                    rate: parseFloat(fundingRate),
+                    interval: EXCHANGES.lighter.fundingIntervalHours
+                };
+            }
+        });
+    }
+    // Handle object with market_stats
+    else if (data && data.market_stats) {
+        if (typeof data.market_stats === 'object') {
+            Object.keys(data.market_stats).forEach(key => {
+                const stats = data.market_stats[key];
+                const ticker = stats.symbol || stats.ticker || `MARKET_${key}`;
+                const fundingRate = stats.funding_rate || stats.current_funding_rate;
+                
+                if (fundingRate !== undefined) {
+                    pairs[ticker] = {
+                        rate: parseFloat(fundingRate),
+                        interval: EXCHANGES.lighter.fundingIntervalHours
+                    };
+                }
+            });
+        }
+    }
+    // Handle order_books with additional data
+    else if (data && data.order_books && Array.isArray(data.order_books)) {
+        data.order_books.forEach(item => {
+            const ticker = item.symbol;
+            const fundingRate = item.funding_rate || item.current_funding_rate;
+            
+            if (ticker && fundingRate !== undefined) {
+                pairs[ticker] = {
+                    rate: parseFloat(fundingRate),
+                    interval: EXCHANGES.lighter.fundingIntervalHours
+                };
+            }
+        });
+    }
+    
+    return pairs;
+}
+
+// Fetch Lighter data using WebSocket
+async function fetchLighterDataWebSocket() {
+    // Get order_books for market mapping first
     let marketIdToSymbol = {};
     
     try {
-        // Get order_books for market mapping
         const orderBooksUrl = `${EXCHANGES.lighter.baseUrl}${EXCHANGES.lighter.endpoint}`;
         const orderBooksResponse = await fetch(orderBooksUrl, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': LIGHTER_AUTH_TOKEN // Try token only (no Bearer)
+                'Authorization': LIGHTER_AUTH_TOKEN
             }
         });
         
@@ -449,14 +575,13 @@ async function fetchLighterData() {
                         marketIdToSymbol[item.market_id] = item.symbol;
                     }
                 });
-                console.log(`Lighter: Mapped ${Object.keys(marketIdToSymbol).length} markets (market_id -> symbol)`);
+                console.log(`Lighter: Mapped ${Object.keys(marketIdToSymbol).length} markets`);
             }
         }
     } catch (e) {
-        console.warn('Lighter: Failed to get order_books for mapping, will try WebSocket anyway');
+        console.warn('Lighter: Failed to get order_books for mapping');
     }
     
-    // Step 2: Use WebSocket to get market_stats
     return new Promise((resolve) => {
         const pairs = {};
         let ws = null;
@@ -474,242 +599,99 @@ async function fetchLighterData() {
         };
         
         try {
-            // Use correct WebSocket URL from documentation: wss://mainnet.zklighter.elliot.ai/stream
             const wsUrl = EXCHANGES.lighter.wsUrl;
             console.log(`Lighter: Connecting to WebSocket ${wsUrl}`);
             
             ws = new WebSocket(wsUrl);
             
-            // Set timeout (15 seconds - increased to allow more data collection)
-            // If WebSocket doesn't respond quickly, continue without Lighter data
+            // Timeout after 10 seconds
             timeoutId = setTimeout(() => {
                 if (!resolved) {
-                    console.log(`Lighter: WebSocket timeout (15s), collected ${Object.keys(pairs).length} pairs`);
-                if (Object.keys(pairs).length === 0) {
-                        console.warn('⚠️ Lighter: No data collected from WebSocket (continuing without Lighter data)');
-                        console.warn('  This might be due to:');
-                        console.warn('  1. WebSocket connection issue');
-                        console.warn('  2. Subscription not working');
-                        console.warn('  3. API endpoint changed');
-                        console.warn('  4. Network/firewall blocking WebSocket');
-                    }
+                    console.log(`Lighter: WebSocket timeout, collected ${Object.keys(pairs).length} pairs`);
                     resolveOnce(pairs);
                 }
-            }, 15000);
+            }, 10000);
             
             ws.onopen = () => {
-                console.log('✅ Lighter: WebSocket connected successfully');
-                // Wait a bit before subscribing to ensure connection is stable
-                setTimeout(() => {
-                // Subscribe to market_stats/all
-                const subscribeMessage = {
-                    type: 'subscribe',
-                    channel: 'market_stats/all'
-                };
-                    try {
-                ws.send(JSON.stringify(subscribeMessage));
-                console.log('Lighter: Sent subscription message:', JSON.stringify(subscribeMessage));
-                    } catch (e) {
-                        console.error('Lighter: Failed to send subscription:', e);
-                    }
-                }, 100);
+                console.log('✅ Lighter: WebSocket connected');
+                
+                // Try multiple subscription formats
+                const subscriptions = [
+                    { type: 'subscribe', channel: 'market_stats/all' },
+                    { op: 'subscribe', channel: 'market_stats' },
+                    { method: 'subscribe', params: ['market_stats'] }
+                ];
+                
+                subscriptions.forEach((msg, i) => {
+                    setTimeout(() => {
+                        try {
+                            ws.send(JSON.stringify(msg));
+                            if (i === 0) console.log('Lighter: Sent subscription:', JSON.stringify(msg));
+                        } catch (e) {}
+                    }, i * 200);
+                });
             };
             
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     
-                    // Log first few messages for debugging (limit to avoid console spam)
-                    const pairCount = Object.keys(pairs).length;
-                    if (pairCount < 5) {
-                        console.log('Lighter: WebSocket message received:', JSON.stringify(data, null, 2));
-                    }
-                    
-                    // Check if it's a market_stats update
-                    // Documentation: https://apidocs.lighter.xyz/docs/websocket-reference
-                    // Response type: "update/market_stats" or "market_stats/all"
-                    if ((data.type === 'update/market_stats' || data.type === 'market_stats/all') && data.market_stats) {
-                        // Handle single market stats (when subscribing to specific market)
-                        if (data.market_stats.market_id !== undefined) {
-                            const stats = data.market_stats;
-                            const marketId = stats.market_id;
-                            
-                            // Use symbol directly from market_stats (more reliable than mapping)
-                            const ticker = stats.symbol || marketIdToSymbol[marketId] || `MARKET_${marketId}`;
-                            
-                            // Get funding rate (prefer current_funding_rate, then funding_rate)
-                            // Lighter API returns funding rate as decimal (e.g., 0.000081 = 0.0081%)
-                            // Check if it's already in percentage format or decimal format
-                            const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
-                            
-                                    if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
-                                        let fundingRateDecimal = parseFloat(fundingRateRaw);
-                                        
-                                        // Lighter API returns funding rate - need to determine format
-                                        // Based on user feedback: 1-hour funding rate is 100x too high
-                                        // Lighter website shows 0.0081%, but we show 0.7800%
-                                        // This suggests API might return 0.0078 (already in percentage format)
-                                        // and we're multiplying by 100 incorrectly
-                                        // 
-                                        // Test: If API returns 0.0078 and we do * 100 = 0.78% (wrong)
-                                        //       If API returns 0.0078 and we use as-is = 0.0078% (wrong, should be 0.0081%)
-                                        //       If API returns 0.000081 and we do * 100 = 0.0081% (correct)
-                                        //
-                                        // Based on 100x difference, API likely returns values like 0.0078 (percentage)
-                                        // but we're treating it as decimal and multiplying by 100
-                                        // Solution: Don't multiply by 100 - use raw value as percentage
-                                        
-                                        // Lighter API returns funding rate already in percentage format
-                                        // Example: 0.0078 = 0.0078%, 0.0081 = 0.0081%
-                                        // Do NOT multiply by 100
-                                        let fundingRate = fundingRateDecimal;
-                                        
-                                        // Validate: if result seems too large (> 10%), log warning
-                                        if (Math.abs(fundingRate) > 10) {
-                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}% (raw: ${fundingRateRaw}). Check if API format changed.`);
-                                        }
-                                        
-                                        if (!isNaN(fundingRate) && isFinite(fundingRate)) {
-                                            // Use default funding interval (1 hour for Lighter)
-                                            pairs[ticker] = {
-                                                rate: fundingRate,
-                                                interval: EXCHANGES.lighter.fundingIntervalHours
-                                            };
-                                            
-                                            // Log first 10 for debugging
-                                            if (Object.keys(pairs).length <= 10) {
-                                                console.log(`✅ Lighter [${ticker}]: funding_rate=${fundingRate}%`);
-                                            }
-                                        }
-                            }
-                        } 
-                        // Handle market_stats/all response (all markets at once - object with market_index keys)
-                        else if (typeof data.market_stats === 'object' && !Array.isArray(data.market_stats)) {
-                            // Process all market data quickly
-                            Object.keys(data.market_stats).forEach(marketIndex => {
-                                const stats = data.market_stats[marketIndex];
-                                if (stats && (stats.current_funding_rate || stats.funding_rate)) {
-                                    // Use symbol directly from market_stats (more reliable than mapping)
-                                    const ticker = stats.symbol || marketIdToSymbol[stats.market_id] || marketIdToSymbol[parseInt(marketIndex)] || `MARKET_${stats.market_id || marketIndex}`;
-                                    
-                                    // Get funding rate - Lighter API returns funding rate already in percentage format
-                                    const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
-                                    
-                                    if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
-                                        let fundingRate = parseFloat(fundingRateRaw);
-                                        
-                                        // Validate: if result seems too large (> 10%), log warning
-                                        if (Math.abs(fundingRate) > 10) {
-                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}% (raw: ${fundingRateRaw}). Check if API format changed.`);
-                                        }
-                                        
-                                        if (!isNaN(fundingRate) && isFinite(fundingRate)) {
-                                            // Use default funding interval (1 hour for Lighter)
-                                            pairs[ticker] = {
-                                                rate: fundingRate,
-                                                interval: EXCHANGES.lighter.fundingIntervalHours
-                                            };
-                                            }
-                                    }
+                    // Process market_stats data
+                    if (data.market_stats) {
+                        const stats = data.market_stats;
+                        
+                        // Handle object with multiple markets
+                        if (typeof stats === 'object' && !stats.market_id) {
+                            Object.keys(stats).forEach(key => {
+                                const marketStats = stats[key];
+                                const ticker = marketStats.symbol || marketIdToSymbol[marketStats.market_id] || marketIdToSymbol[parseInt(key)] || `MARKET_${key}`;
+                                const fundingRate = marketStats.funding_rate || marketStats.current_funding_rate;
+                                
+                                if (fundingRate !== undefined && fundingRate !== null) {
+                                    pairs[ticker] = {
+                                        rate: parseFloat(fundingRate),
+                                        interval: EXCHANGES.lighter.fundingIntervalHours
+                                    };
                                 }
                             });
                             
-                            // If we got all market data, close WebSocket and resolve immediately
-                            console.log(`Lighter: Received all market data (${Object.keys(pairs).length} pairs), closing WebSocket`);
-                            resolveOnce(pairs);
-                        }
-                    } 
-                    // Handle "connected" message (initial connection confirmation)
-                    else if (data.type === 'connected') {
-                        console.log('✅ Lighter: WebSocket connection confirmed');
-                        // Connection is established, wait for market_stats data
-                    }
-                    // Handle subscription confirmation
-                    else if (data.type === 'subscribed' || data.type === 'subscribe') {
-                        console.log('✅ Lighter: Subscription confirmed, waiting for market_stats data...');
-                    }
-                    // Handle any message with market_stats directly (alternative format)
-                    else if (data.market_stats && !data.type) {
-                        console.log('Lighter: Received market_stats without type field');
-                        // Process as market_stats/all format
-                        if (typeof data.market_stats === 'object' && !Array.isArray(data.market_stats)) {
-                            Object.keys(data.market_stats).forEach(marketIndex => {
-                                const stats = data.market_stats[marketIndex];
-                                if (stats && (stats.current_funding_rate || stats.funding_rate)) {
-                                    const ticker = stats.symbol || marketIdToSymbol[stats.market_id] || marketIdToSymbol[parseInt(marketIndex)] || `MARKET_${stats.market_id || marketIndex}`;
-                                    const fundingRateRaw = stats.current_funding_rate || stats.funding_rate;
-                                    
-                                    if (fundingRateRaw !== undefined && fundingRateRaw !== null) {
-                                        let fundingRate = parseFloat(fundingRateRaw);
-                                        
-                                        if (Math.abs(fundingRate) > 10) {
-                                            console.warn(`⚠️ Lighter [${ticker}]: Unusually large funding rate: ${fundingRate}%`);
-                                        }
-                                        
-                                        if (!isNaN(fundingRate) && isFinite(fundingRate)) {
-                                            pairs[ticker] = {
-                                                rate: fundingRate,
-                                                interval: EXCHANGES.lighter.fundingIntervalHours
-                                            };
-                                        }
-                                    }
-                                }
-                            });
-                            console.log(`Lighter: Processed market_stats object, collected ${Object.keys(pairs).length} pairs`);
                             if (Object.keys(pairs).length > 0) {
+                                console.log(`✅ Lighter: Got ${Object.keys(pairs).length} pairs from WebSocket`);
                                 resolveOnce(pairs);
                             }
                         }
-                    }
-                    else {
-                        // Log unknown message types for debugging
-                        const pairCount = Object.keys(pairs).length;
-                        if (pairCount < 10 || !resolved) {
-                            console.log('Lighter: Received message, type:', data.type || 'unknown');
-                        console.log('  Message keys:', Object.keys(data));
-                        if (data.channel) {
-                            console.log('  Channel:', data.channel);
-                            }
-                            // Log full message for first few to debug
-                            if (pairCount < 3) {
-                                console.log('  Full message:', JSON.stringify(data, null, 2));
+                        // Handle single market stats
+                        else if (stats.market_id !== undefined) {
+                            const ticker = stats.symbol || marketIdToSymbol[stats.market_id] || `MARKET_${stats.market_id}`;
+                            const fundingRate = stats.funding_rate || stats.current_funding_rate;
+                            
+                            if (fundingRate !== undefined) {
+                                pairs[ticker] = {
+                                    rate: parseFloat(fundingRate),
+                                    interval: EXCHANGES.lighter.fundingIntervalHours
+                                };
                             }
                         }
                     }
                 } catch (e) {
-                    console.warn('Lighter: Failed to parse WebSocket message:', e);
-                    console.warn('  Raw message:', event.data);
+                    // Ignore parse errors
                 }
             };
             
-            ws.onerror = (error) => {
-                // WebSocket connection failed - resolve immediately without waiting
-                console.error('Lighter: WebSocket error:', error);
-                console.warn('Lighter: WebSocket connection failed (continuing without Lighter data)');
-                if (Object.keys(pairs).length === 0) {
-                    console.warn('  No data was collected. Check browser console for WebSocket errors.');
-                }
+            ws.onerror = () => {
+                console.warn('Lighter: WebSocket error');
                 resolveOnce(pairs);
             };
             
-            ws.onclose = (event) => {
+            ws.onclose = () => {
                 if (!resolved) {
-                if (event.code !== 1000 && event.code !== 1001) {
-                    // Not a normal closure
-                    console.warn(`Lighter: WebSocket closed unexpectedly (code: ${event.code})`);
-                    if (Object.keys(pairs).length === 0) {
-                        console.warn('  Lighter data will not be available. App will continue with other exchanges.');
-                    }
-                } else {
-                    console.log(`Lighter: WebSocket closed normally, collected ${Object.keys(pairs).length} pairs`);
-                }
+                    console.log(`Lighter: WebSocket closed, collected ${Object.keys(pairs).length} pairs`);
                     resolveOnce(pairs);
                 }
             };
             
         } catch (error) {
-            console.error('Lighter: WebSocket connection failed:', error);
-            if (timeoutId) clearTimeout(timeoutId);
+            console.error('Lighter: WebSocket failed:', error);
             resolve(pairs);
         }
     });
